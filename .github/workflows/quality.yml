@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: anndata-omics-bridge/apb2
-          ref: ff496ddee363df01e06c14538d55a60968256a9e
+          ref: 1d904e664ce1322f852235730287695bfed487b5
           path: apb2
 
       - name: Set up Python
