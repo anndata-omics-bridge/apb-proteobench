@@ -11,3 +11,4 @@
   `ff496ddee363df01e06c14538d55a60968256a9e`.
 - Recorded the migrated legacy calculation, golden fixture, and mapper baseline as
   `anndata_bridge/legacy@dd734b1c9d51dfa7e367363d96f8453439fa6235`.
+- Aligned local and GitHub Pages documentation builds with the workspace Zensical toolchain.

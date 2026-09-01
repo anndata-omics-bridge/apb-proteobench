@@ -8,7 +8,7 @@ help:  ## Show developer commands
 		| awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
 sync:  ## Synchronize the locked development environment
-	uv sync --frozen --group dev
+	uv sync --frozen --group dev --group docs
 
 format:  ## Format and autofix source and tests
 	$(VENV_BIN)/ruff format src tests
@@ -33,7 +33,7 @@ test:  ## Run tests with branch coverage
 	$(VENV_BIN)/pytest --cov --cov-branch
 
 docs:  ## Build the documentation with warnings as errors
-	$(VENV_BIN)/mkdocs build --strict
+	uv run --frozen --group docs zensical build --clean --strict
 
 build:  ## Build and validate source and wheel distributions
 	uv build
