@@ -1,0 +1,11 @@
+.venv/
+.coverage
+.import_linter_cache/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+__pycache__/
+build/
+dist/
+public/
+*.egg-info/

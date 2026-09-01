@@ -1,0 +1,28 @@
+[importlinter]
+root_packages =
+    apb_proteobench
+include_external_packages = True
+
+[importlinter:contract:package-dependencies-point-inward]
+name = top-level modules compose configuration and calculation children
+type = layers
+exhaustive = True
+containers =
+    apb_proteobench
+layers =
+    cli
+    presentation
+    api
+    integration
+    annotation | workflow
+    calculation
+    configuration | data
+
+[importlinter:contract:calculation-does-not-know-storage]
+name = scientific calculation has no container backend dependency
+type = forbidden
+source_modules =
+    apb_proteobench.calculation
+forbidden_modules =
+    anndata
+    mudata

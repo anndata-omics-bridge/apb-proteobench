@@ -1,0 +1,45 @@
+name: Quality
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apb-proteobench
+    steps:
+      - name: Check out APB ProteoBench
+        uses: actions/checkout@v6
+        with:
+          path: apb-proteobench
+
+      - name: Check out compatible APB2
+        uses: actions/checkout@v6
+        with:
+          repository: anndata-omics-bridge/apb2
+          ref: ff496ddee363df01e06c14538d55a60968256a9e
+          path: apb2
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          version: "0.9.8"
+          enable-cache: true
+
+      - name: Synchronize environment
+        run: uv sync --frozen --group dev
+
+      - name: Run quality gates
+        run: make check

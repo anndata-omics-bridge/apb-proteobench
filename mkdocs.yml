@@ -1,0 +1,24 @@
+site_name: APB ProteoBench
+site_url: https://anndata-omics-bridge.github.io/apb-proteobench/
+repo_url: https://github.com/anndata-omics-bridge/apb-proteobench
+docs_dir: docs
+site_dir: public
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - CLI: cli.md
+  - Configuration: configuration.md
+  - Architecture: architecture.md
+  - Python API: api.md
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: false

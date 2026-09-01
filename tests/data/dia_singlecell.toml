@@ -1,0 +1,57 @@
+[species_expected_ratio.YEAST]
+A_vs_B = 0.2
+color = "#88ccef"
+
+[species_expected_ratio.HUMAN]
+A_vs_B = 1.2
+color = "#ddcc77"
+
+[species_mapper]
+_YEAST = "YEAST"
+_HUMAN = "HUMAN"
+
+[general]
+min_count_multispec = 1
+level = "ion"
+
+[[samples]]
+raw_file = "HY_A_r1"
+raw_file_alias = "HY_A_r1_uncalibrated"
+sample_name = "Condition_A_Sample_1"
+condition = "A"
+
+[[samples]]
+raw_file = "HY_A_r2"
+raw_file_alias = "HY_A_r2_uncalibrated"
+sample_name = "Condition_A_Sample_2"
+condition = "A"
+
+[[samples]]
+raw_file = "HY_A_r3"
+raw_file_alias = "HY_A_r3_uncalibrated"
+sample_name = "Condition_A_Sample_3"
+condition = "A"
+
+[[samples]]
+raw_file = "HY_B_r1"
+raw_file_alias = "HY_B_r1_uncalibrated"
+sample_name = "Condition_B_Sample_1"
+condition = "B"
+
+[[samples]]
+raw_file = "HY_B_r2"
+raw_file_alias = "HY_B_r2_uncalibrated"
+sample_name = "Condition_B_Sample_2"
+condition = "B"
+
+[[samples]]
+raw_file = "HY_B_r3"
+raw_file_alias = "HY_B_r3_uncalibrated"
+sample_name = "Condition_B_Sample_3"
+condition = "B"
+
+[reference_database]
+fasta_url = "https://proteobench.cubimed.rub.de/fasta/ProteoBenchFASTA_MixedSpecies_HY.zip"
+
+[validation]
+profile = "quant_lfq"

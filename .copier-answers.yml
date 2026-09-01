@@ -1,0 +1,11 @@
+# This file is managed by Copier. Do not edit it manually.
+_src_path: .
+author_email: wew@fgcz.ethz.ch
+author_name: Witold Wolski
+copyright_year: '2026'
+description: ProteoBench annotation, diagnostics, and scoring for APB2 results
+distribution_name: apb-proteobench
+license_spdx: MIT
+package_name: apb_proteobench
+project_name: APB ProteoBench
+python_min: '3.13'
