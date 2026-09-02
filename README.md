@@ -3,6 +3,20 @@
 ProteoBench annotation, mixed-species diagnostics, and scoring for storage-neutral APB2
 results. HYE and HY use the same configuration-driven calculation.
 
+Start directly from a vendor result table:
+
+```bash
+apb-proteobench convert report.tsv \
+    --params search-parameters.txt \
+    --software spectronaut \
+    --output converted
+```
+
+This writes `converted.h5mu` with every compatible quantification level. Pass a level such as
+`ion` after `report.tsv` to write `converted.h5ad` instead.
+
+Continue from that result—or from an existing APB2 result—with annotation and scoring:
+
 ```bash
 apb-proteobench annotate converted.h5mu module_settings.toml annotated.h5mu
 apb-proteobench score annotated.h5mu scored.h5mu --verbose

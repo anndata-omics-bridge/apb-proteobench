@@ -1,5 +1,39 @@
 # CLI
 
+## Convert
+
+Convert one quantification level from a vendor table to AnnData:
+
+```bash
+apb-proteobench convert report.tsv ion \
+    --params search-parameters.txt \
+    --software spectronaut \
+    --output results/ion
+```
+
+This writes `results/ion.h5ad`. Omit the level to parse every compatible level into MuData:
+
+```bash
+apb-proteobench convert report.tsv \
+    --params search-parameters.txt \
+    --software spectronaut \
+    --output results/all-levels
+```
+
+This writes `results/all-levels.h5mu`.
+
+| Argument or option | Meaning |
+| --- | --- |
+| `DATA` | Vendor result table |
+| `LEVEL` | Optional APB2 quantification level |
+| `--params PATH` | Required vendor search-parameter file |
+| `--software NAME` | Select and verify the packaged vendor rules |
+| `--params-software NAME` | Select the parameter parser independently |
+| `--output BASENAME` | Output basename without `.h5ad` or `.h5mu` |
+| `--strict` | Promote layer-contract warnings to errors |
+
+`--software` may be omitted when APB2 can identify one vendor from the table columns.
+
 ## Annotate
 
 ```bash

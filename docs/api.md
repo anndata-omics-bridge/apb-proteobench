@@ -1,5 +1,25 @@
 # Python API
 
+Vendor conversion uses APB2's compiler/parser boundary and returns the parsed in-memory result as
+well as persisting it:
+
+```python
+from pathlib import Path
+
+from apb_proteobench.api import convert_vendor_result
+
+conversion = convert_vendor_result(
+    Path("report.tsv"),
+    Path("search-parameters.txt"),
+    Path("results/all-levels.h5mu"),
+    software="spectronaut",
+)
+parsed = conversion.parsed
+```
+
+Pass `level="ion"` and an `.h5ad` target for one quantification level. Omitting `level` compiles
+and parses every compatible level and requires an `.h5mu` target.
+
 The result-level convenience operations are:
 
 ```python

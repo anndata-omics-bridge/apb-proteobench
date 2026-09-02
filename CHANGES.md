@@ -1,5 +1,12 @@
 # Changes
 
+## Unreleased
+
+- Added `apb-proteobench convert`, which starts at a vendor table and composes APB2's packaged-rule
+  detection and compiler/parser API directly.
+- Added `convert_vendor_result()` for single-level h5ad and all-compatible-level h5mu conversion,
+  returning the parsed in-memory APB2 result.
+
 ## 0.1.0 — 2026-09-01
 
 - Created the separately released ProteoBench integration for APB2.
