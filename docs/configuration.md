@@ -1,5 +1,7 @@
 # Module configuration
 
+## Authored document
+
 The authored configuration is the existing ProteoBench module TOML:
 
 ```toml
@@ -26,6 +28,8 @@ sample_name = "A1"
 condition = "A"
 ```
 
+## Fields used by scoring
+
 - `species_expected_ratio` maps each reported species to its expected A/B abundance ratio.
 - `species_mapper` maps protein-identifier patterns to those same species names.
 - `min_count_multispec` controls exclusion of features assigned to multiple species.
@@ -34,6 +38,11 @@ condition = "A"
 - `max_nr_observed` controls the complete cutoff-indexed score range.
 - Each `samples` record supplies a matching `raw_file`, optional alias, displayed `sample_name`,
   and condition. Conditions A and B are required.
+
+Unknown upstream sections are accepted because the document is shared with ProteoBench. Only the
+validated sample design and scoring fields are embedded in APB metadata.
+
+## Supported quantitative modules
 
 HY omits ECOLI from both species sections; HYE includes it. The quantitative scorer supports the
 eight HYE/HY modules used by the legacy APB integration:
@@ -49,6 +58,8 @@ eight HYE/HY modules used by the legacy APB integration:
 | `dia_singlecell` | DIA low-input/single-cell | ion |
 | `dia_zenotof` | DIA ZenoTOF | ion |
 
+### Load from Python
+
 List and load them without locating package files:
 
 ```python
@@ -57,6 +68,10 @@ from apb_proteobench.configuration.load import available_modules, load_packaged_
 print(available_modules())
 module = load_packaged_module("dia_singlecell")
 ```
+
+`available_modules()` returns only modules validated for the current quantitative scorer.
+
+## Packaged for planned support
 
 Three newer ProteoBench module documents are also packaged so this repository owns the complete
 upstream catalogue:
@@ -78,11 +93,14 @@ print(packaged_module_names())
 ```
 
 The TOMLs are copied from ProteoBench and pinned by checksum. Their source revision, original paths,
-and support status are recorded in the packaged `MODULES_NOTICE.md`.
+and support status are recorded in
+[`MODULES_NOTICE.md`](https://github.com/anndata-omics-bridge/apb-proteobench/blob/main/src/apb_proteobench/data/MODULES_NOTICE.md).
 
-Unknown upstream module sections are tolerated because the source document is shared with
-ProteoBench, but only the validated scoring and sample subset is embedded into APB metadata.
+## Persisted form
+
 The embedded sample design is normalized as a column mapping (`raw_file`, `sample_name`, and
-`condition` arrays), rather than TOML's list of tables, so the same JSON-compatible value also
+`condition` arrays), rather than TOML's list of tables, so the same JSON-compatible value
 round-trips through AnnData's HDF5 representation. Authored aliases remain traceable to the
-checksum-identified source module but are unnecessary after the match has been applied.
+checksum-identified source module but are unnecessary after matching.
+
+Continue to [Result layout](results.md) for the physical and storage-neutral metadata locations.

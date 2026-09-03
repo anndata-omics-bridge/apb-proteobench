@@ -1,7 +1,17 @@
 # Python API
 
-Vendor conversion uses APB2's compiler/parser boundary and returns the parsed in-memory result as
-well as persisting it:
+The Python API provides two levels of composition:
+
+- file-to-file functions mirror complete CLI operations; and
+- parser and workflow objects expose APB2's storage-neutral `ParsedLevels` between annotation,
+  calculation, and persistence.
+
+## Convert vendor results
+
+### File-to-file facade
+
+`convert_vendor_result()` parses a vendor table through APB2's packaged rules, writes h5ad or h5mu,
+and returns the same parsed result in memory:
 
 ```python
 from pathlib import Path
@@ -14,52 +24,197 @@ conversion = convert_vendor_result(
     Path("results/all-levels.h5mu"),
     software="spectronaut",
 )
-parsed = conversion.parsed
+
+print(conversion.software)
+print(conversion.software_version)
+print(list(conversion.parsed.levels))
 ```
 
-Pass `level="ion"` and an `.h5ad` target for one quantification level. Omitting `level` compiles
-and parses every compatible level and requires an `.h5mu` target.
-
-The packaged quantitative module catalogue is available without an external ProteoBench checkout.
-`available_modules()` reports the eight modules supported by the scorer; `packaged_module_names()`
-inventories all 11 upstream documents, including the three retained for planned support:
+Omitting `level` converts every compatible level and requires an `.h5mu` target. Select one level
+and an `.h5ad` target explicitly:
 
 ```python
+conversion = convert_vendor_result(
+    Path("report.tsv"),
+    Path("search-parameters.txt"),
+    Path("results/ion.h5ad"),
+    level="ion",
+    software="spectronaut",
+    checks="strict",
+)
+```
+
+`parameters_software` selects the parameter parser independently. When `software` is omitted, APB2
+detects the vendor from the result-table columns and parameter evidence.
+
+For direct access to APB2's compiler/parser boundary, rule documents, and parser output, see the
+[APB2 Python API](https://anndata-omics-bridge.github.io/apb2/api/#convert-vendor-results).
+
+## Annotate a result
+
+### File-to-file facade
+
+```python
+from pathlib import Path
+
+from apb_proteobench.api import annotate_result
+
+annotation = annotate_result(
+    Path("results/all-levels.h5mu"),
+    Path("module_settings.toml"),
+    Path("results/annotated.h5mu"),
+)
+
+for level, report in annotation.reports.items():
+    print(level, report.coverage)
+```
+
+`annotate_result()` reads the source, validates complete module-sample coverage, writes a new result,
+and returns APB2's typed `AnnotationResult`.
+
+### Parser and in-memory result
+
+Use `ProteoBenchAnnotationParser` to keep `ParsedLevels` in memory:
+
+```python
+from pathlib import Path
+
+from apb2.result_facade import read_parsed_levels, write_parsed_levels
+from apb_proteobench.annotation import ProteoBenchAnnotationParser
+
+parsed = read_parsed_levels(Path("results/all-levels.h5mu"))
+parser = ProteoBenchAnnotationParser.from_path(Path("module_settings.toml"))
+annotation = parser.parse(parsed)
+
+for level, match in annotation.matches.levels.items():
+    print(level, match.coverage)
+
+annotated = annotation.annotate().parsed
+write_parsed_levels(annotated, Path("results/annotated.parquet"))
+```
+
+The parser validates and decodes the module once. `parse(parsed)` binds it to one dataset and raises
+before constructing an annotation when the selected level or complete sample coverage is invalid.
+`annotate()` applies the stored match without recomputing it.
+
+## Use packaged modules
+
+Eight quantitative HYE/HY modules are loadable without an external ProteoBench checkout:
+
+```python
+from pathlib import Path
+
+from apb2.result_facade import read_parsed_levels
+from apb_proteobench.annotation import ProteoBenchAnnotationParser
 from apb_proteobench.configuration.load import (
     available_modules,
     load_packaged_module,
     packaged_module_names,
 )
 
+print(available_modules())
 print(packaged_module_names())
 
-for name in available_modules():
-    module = load_packaged_module(name)
-    print(name, module.settings.general.level)
+module = load_packaged_module("dia_singlecell")
+parsed = read_parsed_levels(Path("results/all-levels.h5mu"))
+annotation = ProteoBenchAnnotationParser(module).parse(parsed)
+annotated = annotation.annotate().parsed
 ```
 
-The result-level convenience operations are:
+`packaged_module_names()` inventories all 11 module TOMLs in the distribution. Plasma, de novo,
+and entrapment are packaged for planned support but deliberately rejected by
+`load_packaged_module()`. See [Module configuration](configuration.md).
+
+## Score a result
+
+### File-to-file facade
 
 ```python
 from pathlib import Path
 
-from apb_proteobench.api import annotate_result, score_result
+from apb_proteobench.api import score_result
 
-annotate_result(
-    Path("converted.h5mu"),
-    Path("module_settings.toml"),
-    Path("annotated.h5mu"),
+scored = score_result(
+    Path("results/annotated.h5mu"),
+    Path("results/scored.h5mu"),
 )
-result = score_result(Path("annotated.h5mu"), Path("scored.h5mu"))
+
+print(scored.extracted.name)
+print(scored.analysis.scores.nr_feature)
+print(scored.analysis.scores.median_abs_epsilon_global)
 ```
 
-`score_result` accepts explicit `diagnostic_method` and `scoring_method` implementations for
-programmatic composition. The storage-independent calculation entry point is
-`apb_proteobench.workflow.analyze_level`.
+The returned `ScoredResult` retains the validated configuration, extracted typed calculation input,
+complete diagnostics, aggregate scores, selected methods, and input/output paths. See
+[Result layout](results.md) for persisted locations.
+
+### Storage-neutral workflow
+
+Use the lower-level workflow to inspect or transform values before writing:
+
+```python
+from pathlib import Path
+
+from apb2.result_facade import read_parsed_levels, write_parsed_levels
+from apb_proteobench.integration import embedded_configuration, extract_level, persist_result
+from apb_proteobench.workflow import (
+    MixedSpeciesDiagnostics,
+    ProteoBenchCompatibleScoring,
+    analyze_level,
+)
+
+parsed = read_parsed_levels(Path("results/annotated.h5mu"))
+configuration = embedded_configuration(parsed)
+extracted = extract_level(parsed, configuration)
+
+analysis = analyze_level(
+    extracted.calculation,
+    configuration,
+    MixedSpeciesDiagnostics(),
+    ProteoBenchCompatibleScoring(),
+)
+
+scored = persist_result(parsed, extracted, analysis)
+write_parsed_levels(scored, Path("results/scored.duckdb"))
+```
+
+The calculation consumes `QuantitativeLevelInput`, not AnnData, MuData, or `ParsedLevels`.
+`persist_result()` attaches the calculation output to a copy of the APB2 result.
+
+## Substitute diagnostic and scoring methods
+
+`score_result()` accepts implementations of the client-owned `DiagnosticMethod` and
+`ScoringMethod` protocols:
+
+```python
+scored = score_result(
+    Path("results/annotated.h5mu"),
+    Path("results/custom-scored.h5mu"),
+    diagnostic_method=my_diagnostics,
+    scoring_method=my_scoring,
+)
+```
+
+A diagnostic method receives `QuantitativeLevelInput` plus `ModuleSettings` and returns an
+`IntermediateResult`. A scoring method reduces that intermediate result to `ProteoBenchScores`.
+Both methods provide a persistable `identity()`.
+
+## Errors and output safety
+
+File-to-file annotation and scoring raise `ValueError` when source and target resolve to the same
+path, the target exists, required annotation is absent, or ProteoBench output already exists.
+Pydantic `ValidationError` reports invalid module documents. APB2 result readers and writers report
+format and persistence errors through their own documented exception hierarchy.
+
+## API objects
 
 ::: apb_proteobench.api
 
+::: apb_proteobench.annotation
+
 ::: apb_proteobench.workflow
+
+::: apb_proteobench.integration
 
 ::: apb_proteobench.configuration.schema
 

@@ -7,10 +7,14 @@ theme:
   name: material
 nav:
   - Home: index.md
-  - CLI: cli.md
-  - Configuration: configuration.md
+  - Guides:
+      - End-to-end workflow: workflow.md
+      - Module configuration: configuration.md
+      - Result layout: results.md
+  - Reference:
+      - Command-line interface: cli.md
+      - Python API: api.md
   - Architecture: architecture.md
-  - Python API: api.md
 markdown_extensions:
   - admonition
   - pymdownx.highlight
