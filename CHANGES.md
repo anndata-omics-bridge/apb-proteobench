@@ -6,6 +6,10 @@
   detection and compiler/parser API directly.
 - Added `convert_vendor_result()` for single-level h5ad and all-compatible-level h5mu conversion,
   returning the parsed in-memory APB2 result.
+- Packaged all 11 current ProteoBench module TOMLs with stable catalogue names, checksums, and
+  upstream Apache-2.0 provenance. The eight quantitative HYE/HY modules used by legacy APB are
+  validated and loadable; plasma, de novo, and entrapment are retained with explicit unsupported
+  status for planned integration.
 
 ## 0.1.0 — 2026-09-01
 

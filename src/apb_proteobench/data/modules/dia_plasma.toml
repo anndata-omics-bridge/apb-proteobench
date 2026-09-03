@@ -1,0 +1,92 @@
+[species_expected_ratio]
+[species_expected_ratio.YEAST]
+"A_vs_B" = 0.3333333333333333333333333333333333333
+"color" = "red"
+
+[species_expected_ratio.ECOLI]
+"A_vs_B" = 2.0
+"color" = "blue"
+
+[species_expected_ratio.HUMAN]
+"A_vs_B" = 1.0
+"color" = "green"
+
+[species_mapper]
+"_YEAST" = "YEAST"
+"_ECOLI" = "ECOLI"
+"_HUMAN" = "HUMAN"
+
+[general]
+"min_count_multispec" = 1
+"level" = "ion"
+
+[[samples]]
+raw_file = "A9_G_DIA_nLC_tTOF_R1"
+sample_name = "Condition_A_Sample_1"
+condition = "A"
+
+[[samples]]
+raw_file = "A9_G_DIA_nLC_tTOF_R2"
+sample_name = "Condition_A_Sample_2"
+condition = "A"
+
+[[samples]]
+raw_file = "A9_G_DIA_nLC_tTOF_R3"
+sample_name = "Condition_A_Sample_3"
+condition = "A"
+
+[[samples]]
+raw_file = "A9_G_DIA_nLC_tTOF_R4"
+sample_name = "Condition_A_Sample_4"
+condition = "A"
+
+[[samples]]
+raw_file = "A9_G_DIA_nLC_tTOF_R5"
+sample_name = "Condition_A_Sample_5"
+condition = "A"
+
+[[samples]]
+raw_file = "A9_G_DIA_nLC_tTOF_R6"
+sample_name = "Condition_A_Sample_6"
+condition = "A"
+
+[[samples]]
+raw_file = "B9_G_DIA_nLC_tTOF_R1"
+sample_name = "Condition_B_Sample_1"
+condition = "B"
+
+[[samples]]
+raw_file = "B9_G_DIA_nLC_tTOF_R2"
+sample_name = "Condition_B_Sample_2"
+condition = "B"
+
+[[samples]]
+raw_file = "B9_G_DIA_nLC_tTOF_R3"
+sample_name = "Condition_B_Sample_3"
+condition = "B"
+
+[[samples]]
+raw_file = "B9_G_DIA_nLC_tTOF_R4"
+sample_name = "Condition_B_Sample_4"
+condition = "B"
+
+[[samples]]
+raw_file = "B9_G_DIA_nLC_tTOF_R5"
+sample_name = "Condition_B_Sample_5"
+condition = "B"
+
+[[samples]]
+raw_file = "B9_G_DIA_nLC_tTOF_R6"
+sample_name = "Condition_B_Sample_6"
+condition = "B"
+
+
+[reference_database]
+# Reference protein database used to validate uploaded protein identifiers.
+# Read by proteobench.validation (ModuleValidationConfig).
+"fasta_url" = "https://proteobench.cubimed.rub.de/fasta/ProteoBenchFASTA_Distler_PYE.zip"
+
+[validation]
+# Validation profile applied to submissions for this module.
+# Resolved by proteobench.validation (ModuleValidationConfig.from_parse_settings).
+"profile" = "quant_lfq"

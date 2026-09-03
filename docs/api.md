@@ -20,6 +20,24 @@ parsed = conversion.parsed
 Pass `level="ion"` and an `.h5ad` target for one quantification level. Omitting `level` compiles
 and parses every compatible level and requires an `.h5mu` target.
 
+The packaged quantitative module catalogue is available without an external ProteoBench checkout.
+`available_modules()` reports the eight modules supported by the scorer; `packaged_module_names()`
+inventories all 11 upstream documents, including the three retained for planned support:
+
+```python
+from apb_proteobench.configuration.load import (
+    available_modules,
+    load_packaged_module,
+    packaged_module_names,
+)
+
+print(packaged_module_names())
+
+for name in available_modules():
+    module = load_packaged_module(name)
+    print(name, module.settings.general.level)
+```
+
 The result-level convenience operations are:
 
 ```python
@@ -44,3 +62,5 @@ programmatic composition. The storage-independent calculation entry point is
 ::: apb_proteobench.workflow
 
 ::: apb_proteobench.configuration.schema
+
+::: apb_proteobench.configuration.load

@@ -6,12 +6,33 @@ import hashlib
 import json
 import tomllib
 from dataclasses import dataclass
+from importlib.resources import files
 from pathlib import Path
 from typing import cast
 
 from apb2.result_facade import JsonValue
 
 from apb_proteobench.configuration.schema import ModuleSettings
+
+SUPPORTED_MODULE_NAMES = (
+    "dda_astral",
+    "dda_peptidoform",
+    "dda_qexactive",
+    "dia_aif",
+    "dia_astral",
+    "dia_diapasef",
+    "dia_singlecell",
+    "dia_zenotof",
+)
+"""Stable names of modules supported by the quantitative scorer."""
+
+PACKAGED_MODULE_NAMES = (
+    *SUPPORTED_MODULE_NAMES,
+    "dia_plasma",
+    "denovo_dda_hcd",
+    "entrapment_dia_astral",
+)
+"""Stable names of all upstream ProteoBench module documents in the package."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,8 +75,47 @@ def load_module(path: Path, /) -> LoadedModule:
     """Load and validate one complete ProteoBench module TOML."""
     source = path.expanduser().resolve()
     payload = source.read_bytes()
+    return _load_module(payload, source.name)
+
+
+def available_modules() -> tuple[str, ...]:
+    """Return the packaged modules supported by the quantitative scorer."""
+    return SUPPORTED_MODULE_NAMES
+
+
+def packaged_module_names() -> tuple[str, ...]:
+    """Return the stable names of all packaged ProteoBench module documents."""
+    return PACKAGED_MODULE_NAMES
+
+
+def load_packaged_module(name: str, /) -> LoadedModule:
+    """Load one packaged quantitative benchmark module by its stable name.
+
+    Args:
+        name: A value returned by :func:`available_modules`.
+
+    Returns:
+        The validated settings and source identity of the packaged module.
+
+    Raises:
+        ValueError: The name does not identify a supported packaged module.
+    """
+    if name in PACKAGED_MODULE_NAMES and name not in SUPPORTED_MODULE_NAMES:
+        raise ValueError(
+            f"packaged ProteoBench module {name!r} is not supported by the quantitative scorer"
+        )
+    if name not in SUPPORTED_MODULE_NAMES:
+        raise ValueError(
+            f"unknown packaged ProteoBench module {name!r}; available: "
+            f"{list(SUPPORTED_MODULE_NAMES)}"
+        )
+    resource = files("apb_proteobench.data.modules").joinpath(f"{name}.toml")
+    return _load_module(resource.read_bytes(), resource.name)
+
+
+def _load_module(payload: bytes, name: str) -> LoadedModule:
     settings = ModuleSettings.model_validate(tomllib.loads(payload.decode("utf-8")))
     return LoadedModule(
         settings=settings,
-        source=ModuleSource(name=source.name, sha256=hashlib.sha256(payload).hexdigest()),
+        source=ModuleSource(name=name, sha256=hashlib.sha256(payload).hexdigest()),
     )

@@ -27,6 +27,12 @@ configuration. Scoring reads that embedded configuration, writes feature diagnos
 `varm["proteobench"]`, and writes scores and provenance to
 `uns["apb"]["proteobench"]`. See the [documentation](docs/index.md).
 
+The package owns all 11 ProteoBench module TOMLs: the eight quantitative HYE/HY modules used by
+legacy APB and the newer plasma, de novo, and entrapment documents. The latter three are explicitly
+packaged for planned support but are not accepted by the current quantitative scorer. Stable names,
+support status, and the Python loading API are documented under
+[module configuration](docs/configuration.md).
+
 ## Development
 
 ```bash
