@@ -25,7 +25,7 @@ result = run_vendor_benchmark(
 )
 
 print(result.fasta_reports.peptide_levels)
-print(result.analysis.scores.nr_feature)
+print(result.scored.analysis.scores.nr_feature)
 ```
 
 It compiles and runs every compatible APB2 parser, verifies modification-stripped peptide sequences against the FASTA database, applies the ProteoBench design, scores the configured level, and persists once at the end. The target must be an exact `.h5mu` path.

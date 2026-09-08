@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import polars as pl
@@ -49,7 +49,8 @@ class ProteoBenchAnnotation:
         levels = dict(self.parsed.levels)
         levels[level_name] = recorded.parsed.levels[level_name]
         return AnnotationResult(
-            parsed=ParsedLevels(
+            parsed=replace(
+                self.parsed,
                 levels=levels,
                 uns=deepcopy(self.parsed.uns),
                 metadata=recorded.parsed.metadata,

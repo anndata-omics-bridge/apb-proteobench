@@ -73,7 +73,7 @@ result = run_vendor_benchmark(
     software="spectronaut",
 )
 print(result.software, list(result.parsed.levels))
-print(result.analysis.scores.nr_feature)
+print(result.scored.analysis.scores.nr_feature)
 ```
 
 The API also exposes the annotation parser, storage-neutral calculation workflow, and replaceable

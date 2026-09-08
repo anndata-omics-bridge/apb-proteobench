@@ -44,7 +44,9 @@ apb-proteobench benchmark \
     results/aggregated.h5mu module_settings.toml results/scored.h5mu
 ```
 
-Aggregation is reached only through the separate `apb-aggregate` CLI, never as a library call, which is what keeps APB ProteoBench free of a dependency on it. Include the step only when the level named in `module_settings.toml` is not the level the vendor table reports; run it once per source level, chaining outputs when both `ion` and `fragment` must reach `protein`. Omit it entirely and `benchmark` reads `fasta-checked.h5mu` directly. `benchmark` combines ProteoBench annotation and scoring while preserving the APB2 result boundary.
+Aggregation is reached only through the `apb-aggregate` CLI, never as a library call. That is what keeps APB ProteoBench free of a dependency on it.
+
+Include the step only when `module_settings.toml` names a level the vendor table does not report. Run it once per source level, chaining outputs when both `ion` and `fragment` must reach `protein`. Omit it and `benchmark` reads `fasta-checked.h5mu` directly.
 
 ## Start from an existing APB2 result
 
@@ -97,7 +99,7 @@ result = run_vendor_benchmark(
 
 print(list(result.parsed.levels))
 print(result.fasta_reports.peptide_levels)
-print(result.analysis.scores.nr_feature)
+print(result.scored.analysis.scores.nr_feature)
 ```
 
 For separate file-to-file stages, in-memory parsers, packaged module selection, custom calculation

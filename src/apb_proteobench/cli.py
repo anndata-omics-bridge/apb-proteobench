@@ -15,7 +15,6 @@ from pydantic import ValidationError
 
 from apb_proteobench.api import (
     ConvertedVendorResult,
-    ScoredResult,
     VendorBenchmarkResult,
     annotate_result,
     benchmark_result,
@@ -237,16 +236,7 @@ def _report_vendor_benchmark(result: VendorBenchmarkResult, /, *, verbose: bool)
             coverage.feature_count,
             coverage.unmatched_feature_count,
         )
-    report_score(
-        ScoredResult(
-            input_path=result.input_path,
-            output_path=result.output_path,
-            configuration=result.configuration,
-            extracted=result.extracted,
-            analysis=result.analysis,
-        ),
-        verbose=verbose,
-    )
+    report_score(result.scored, verbose=verbose)
 
 
 def main() -> int:

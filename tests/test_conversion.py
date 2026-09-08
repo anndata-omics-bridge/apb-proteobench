@@ -225,7 +225,7 @@ def test_run_vendor_benchmark_writes_one_complete_h5mu(tmp_path: Path) -> None:
 
     restored = read_parsed_levels(target)
     assert result.software == "diann"
-    assert result.analysis.scores.nr_feature == 3
+    assert result.scored.analysis.scores.nr_feature == 3
     assert result.fasta_reports.peptide_levels["ion"].unmatched_feature_count == 0
     assert "fasta_validation" in restored.levels["ion"].varm
     assert "proteobench" in restored.levels["ion"].varm

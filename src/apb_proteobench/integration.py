@@ -143,7 +143,8 @@ def persist_result(
     level_metadata[_STORAGE_KEY] = record
     levels = dict(parsed.levels)
     levels[extracted.name] = replace(level, varm=varm, metadata=level_metadata)
-    return ParsedLevels(
+    return replace(
+        parsed,
         levels=levels,
         uns=deepcopy(parsed.uns),
         metadata=deepcopy(parsed.metadata),

@@ -87,18 +87,11 @@ class ScoredResult:
 class VendorBenchmarkResult:
     """Complete raw-vendor workflow evidence and the final APB2 result."""
 
-    input_path: Path
-    parameters_path: Path
-    fasta_paths: tuple[Path, ...]
-    module_path: Path
-    output_path: Path
     software: str
     software_version: str | None
     parsed: ParsedLevels
     fasta_reports: FastaAnnotationReports
-    configuration: ModuleSettings
-    extracted: ExtractedProteoBenchLevel
-    analysis: ProteoBenchResult
+    scored: ScoredResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +100,19 @@ class _AnalyzedResult:
     configuration: ModuleSettings
     extracted: ExtractedProteoBenchLevel
     analysis: ProteoBenchResult
+
+
+def _persist_scored(analyzed: _AnalyzedResult, source: Path, target: Path, /) -> ScoredResult:
+    """Write the analyzed result and wrap it as the public scoring evidence."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    write_parsed_levels(analyzed.parsed, target)
+    return ScoredResult(
+        input_path=source,
+        output_path=target,
+        configuration=analyzed.configuration,
+        extracted=analyzed.extracted,
+        analysis=analyzed.analysis,
+    )
 
 
 def convert_vendor_result(
@@ -201,15 +207,7 @@ def benchmark_result(
         diagnostic_method=diagnostic_method,
         scoring_method=scoring_method,
     )
-    target.parent.mkdir(parents=True, exist_ok=True)
-    write_parsed_levels(analyzed.parsed, target)
-    return ScoredResult(
-        input_path=source,
-        output_path=target,
-        configuration=analyzed.configuration,
-        extracted=analyzed.extracted,
-        analysis=analyzed.analysis,
-    )
+    return _persist_scored(analyzed, source, target)
 
 
 def score_result(
@@ -228,15 +226,7 @@ def score_result(
         diagnostic_method=diagnostic_method,
         scoring_method=scoring_method,
     )
-    target.parent.mkdir(parents=True, exist_ok=True)
-    write_parsed_levels(analyzed.parsed, target)
-    return ScoredResult(
-        input_path=source,
-        output_path=target,
-        configuration=analyzed.configuration,
-        extracted=analyzed.extracted,
-        analysis=analyzed.analysis,
-    )
+    return _persist_scored(analyzed, source, target)
 
 
 def run_vendor_benchmark(
@@ -290,11 +280,12 @@ def run_vendor_benchmark(
         parameters_software=parameters_software,
     )
     provenance = _vendor_provenance(detected, parameters, parameters_path)
-    parsed = _parse_all_levels_in_memory(
+    parsed = _parse_all_levels(
         source,
         detected,
         search_parameter_evidence(parameters),
         provenance,
+        None,
         checks=checks,
     )
     proteins = ProteinDatabase(uniprotkb, refseq).parse(fasta_paths)
@@ -303,27 +294,20 @@ def run_vendor_benchmark(
         proteins,
         parameters=fasta_parameters,
     ).verify_peptides()
-    annotated = ProteoBenchAnnotationParser.from_path(module).parse(verified.parsed).annotate()
+    fasta_reports = verified.reports
+    parsed = verified.parsed
+    parsed = ProteoBenchAnnotationParser.from_path(module).parse(parsed).annotate().parsed
     analyzed = _analyze_parsed(
-        annotated.parsed,
+        parsed,
         diagnostic_method=diagnostic_method,
         scoring_method=scoring_method,
     )
-    target.parent.mkdir(parents=True, exist_ok=True)
-    write_parsed_levels(analyzed.parsed, target)
     return VendorBenchmarkResult(
-        input_path=data,
-        parameters_path=parameters_path,
-        fasta_paths=fasta_paths,
-        module_path=module,
-        output_path=target,
         software=detected.software,
         software_version=detected.version,
         parsed=analyzed.parsed,
-        fasta_reports=verified.reports,
-        configuration=analyzed.configuration,
-        extracted=analyzed.extracted,
-        analysis=analyzed.analysis,
+        fasta_reports=fasta_reports,
+        scored=_persist_scored(analyzed, data, target),
     )
 
 
@@ -434,10 +418,11 @@ def _parse_all_levels(
     detected: DetectedRuleDocument,
     evidence: SearchParameterEvidence,
     provenance: dict[str, JsonValue],
-    target: Path,
+    target: Path | None,
     *,
     checks: AnnDataChecks,
 ) -> ParsedLevels:
+    """Parse every compatible level, writing the result only when a target is given."""
     parsers, writer = compile_mudata_parsers(
         document=detected.document,
         levels=detected.document.levels,
@@ -458,35 +443,6 @@ def _parse_all_levels(
             "quantification_levels": list(levels),
         },
     )
-    writer.write(parsed, target)
+    if target is not None:
+        writer.write(parsed, target)
     return parsed
-
-
-def _parse_all_levels_in_memory(
-    source: SingleFile,
-    detected: DetectedRuleDocument,
-    evidence: SearchParameterEvidence,
-    provenance: dict[str, JsonValue],
-    *,
-    checks: AnnDataChecks,
-) -> ParsedLevels:
-    parsers, _writer = compile_mudata_parsers(
-        document=detected.document,
-        levels=detected.document.levels,
-        parameter_evidence=evidence,
-        source=source,
-        checks=checks,
-    )
-    levels: dict[ParsedLevelName, ParsedLevel] = {}
-    for parser in parsers:
-        parsed_level = parser.parse()
-        parsed_level.uns.update(provenance)
-        levels[cast(ParsedLevelName, parser.level)] = parsed_level
-    return ParsedLevels(
-        levels=levels,
-        uns={
-            "produced_by": PRODUCER,
-            **provenance,
-            "quantification_levels": list(levels),
-        },
-    )
