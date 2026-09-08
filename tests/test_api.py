@@ -4,12 +4,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import polars as pl
 import pytest
-from apb2.result_facade import JsonValue, read_parsed_levels, write_parsed_levels
+from apb2.result_facade import (
+    AnnotationTable,
+    FeatureRelation,
+    JsonValue,
+    read_parsed_levels,
+    write_parsed_levels,
+)
 from loguru import logger
 
 from apb_proteobench.annotation import ProteoBenchAnnotationParser
-from apb_proteobench.api import annotate_result, score_result
+from apb_proteobench.api import annotate_result, benchmark_result, score_result
 from apb_proteobench.calculation.contracts import QuantitativeLevelInput
 from apb_proteobench.calculation.intermediate import IntermediateResult
 from apb_proteobench.calculation.metrics import ProteoBenchScores
@@ -46,6 +53,30 @@ def test_annotation_requires_exact_coverage_and_embeds_complete_configuration(
     assert source["sha256"]
     assert general["level"] == "ion"
     assert parsed.levels["ion"].obs.frame.columns == ["Run"]
+
+
+def test_annotation_preserves_root_annotation_tables_and_relations(tmp_path: Path) -> None:
+    module = tmp_path / "module.toml"
+    write_module(module, alias=True)
+    parsed = parsed_result()
+    parsed.annotation_tables["members"] = AnnotationTable(
+        frame=pl.DataFrame({"member": ["P1"]}),
+        key_columns=("member",),
+    )
+    parsed.feature_relations["membership"] = FeatureRelation(
+        annotation_table="members",
+        target_level="ion",
+        coordinates=pl.DataFrame({"row": [0], "column": [0], "value": [1.0]}),
+    )
+
+    result = ProteoBenchAnnotationParser.from_path(module).parse(parsed).annotate().parsed
+
+    assert result.annotation_tables["members"].frame.equals(
+        parsed.annotation_tables["members"].frame
+    )
+    assert result.feature_relations["membership"].coordinates.equals(
+        parsed.feature_relations["membership"].coordinates
+    )
 
 
 def test_annotation_rejects_quantification_and_module_subsets(tmp_path: Path) -> None:
@@ -91,6 +122,21 @@ def test_annotation_scoring_and_roundtrip_through_every_apb_format(
     assert _object(stored["column_roles"])["Proteins"] == "var:Protein_Ids"
     with pytest.raises(ValueError, match="already exists"):
         score_result(annotated, scored)
+
+
+def test_benchmark_result_annotates_and_scores_in_one_call(tmp_path: Path) -> None:
+    source = tmp_path / "source.parquet"
+    target = tmp_path / "benchmarked.parquet"
+    module = tmp_path / "module.toml"
+    write_module(module)
+    write_parsed_levels(parsed_result(), source)
+
+    result = benchmark_result(source, module, target)
+
+    restored = read_parsed_levels(target)
+    assert result.analysis.scores.nr_feature == 3
+    assert "sample_name" in restored.levels["ion"].obs.frame
+    assert "proteobench" in restored.levels["ion"].varm
 
 
 class _ObservedDiagnostics:
@@ -155,12 +201,21 @@ def test_cli_annotate_score_and_verbose_summary(tmp_path: Path) -> None:
     annotated = tmp_path / "annotated.parquet"
     scored = tmp_path / "scored.parquet"
     concise = tmp_path / "concise.parquet"
+    benchmarked = tmp_path / "benchmarked.parquet"
     module = tmp_path / "module.toml"
     write_module(module)
     write_parsed_levels(parsed_result(), source)
     messages: list[str] = []
     sink = logger.add(messages.append, format="{message}")
     try:
+        assert (
+            app(
+                ["benchmark", str(source), str(module), str(benchmarked)],
+                exit_on_error=False,
+                result_action="return_value",
+            )
+            == 0
+        )
         assert (
             app(
                 ["annotate", str(source), str(module), str(annotated)],

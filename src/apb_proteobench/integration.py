@@ -147,6 +147,8 @@ def persist_result(
         levels=levels,
         uns=deepcopy(parsed.uns),
         metadata=deepcopy(parsed.metadata),
+        annotation_tables=deepcopy(parsed.annotation_tables),
+        feature_relations=deepcopy(parsed.feature_relations),
     )
 
 

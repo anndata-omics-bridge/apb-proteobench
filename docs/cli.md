@@ -1,16 +1,57 @@
 # CLI reference
 
-`apb-proteobench` exposes three commands:
+`apb-proteobench` exposes five commands. `run` and `benchmark` are the normal composition points;
+the other commands keep individual stages independently callable.
 
 | Command | Purpose | Guide |
 | --- | --- | --- |
-| `apb-proteobench convert` | parse a vendor table through APB2 | [End-to-end workflow](workflow.md#1-convert-a-vendor-table) |
-| `apb-proteobench annotate` | bind a ProteoBench module to an APB2 result | [End-to-end workflow](workflow.md#2-annotate-the-experiment) |
-| `apb-proteobench score` | calculate diagnostics and scores from embedded configuration | [End-to-end workflow](workflow.md#3-calculate-diagnostics-and-scores) |
+| `apb-proteobench run` | vendor files through conversion, FASTA checking, annotation, and scoring | [Direct workflow](workflow.md#direct-one-call-workflow) |
+| `apb-proteobench benchmark` | annotate and score an existing APB2 result in one call | [Staged workflow](workflow.md#staged-workflow) |
+| `apb-proteobench convert` | parse a vendor table through APB2 | [Staged workflow](workflow.md#staged-workflow) |
+| `apb-proteobench annotate` | bind a ProteoBench module to an APB2 result | [Fine-grained stages](workflow.md#fine-grained-proteobench-stages) |
+| `apb-proteobench score` | calculate diagnostics and scores from embedded configuration | [Fine-grained stages](workflow.md#fine-grained-proteobench-stages) |
 
 Use `apb-proteobench --help` or a command's `--help` for the installed version's generated Cyclopts
 reference. Direct conversion supports the software, versions, inputs, parameter parsers, and levels
 listed in the [APB2 support matrix](https://anndata-omics-bridge.github.io/apb2/supported_software/).
+
+## `apb-proteobench run`
+
+```text
+apb-proteobench run DATA FASTA... --params PATH --module PATH --output RESULT.h5mu [OPTIONS]
+```
+
+`run` performs the complete workflow in memory and writes only the final MuData result:
+
+```bash
+apb-proteobench run report.tsv human.fasta contaminants.fasta \
+    --params search-parameters.txt \
+    --module module_settings.toml \
+    --software spectronaut \
+    --output results/scored.h5mu \
+    --verbose
+```
+
+The main options are `--params-software`, `--strict`, `--backend`, `--il-equivalent`, and `--protein-group-separator`. At least one FASTA is required. The exact output must end in `.h5mu`, must differ from the vendor table, and must not already exist.
+
+`run` performs no quantitative aggregation and scores the level named in `module_settings.toml` as the vendor table reports it. To derive that level from a lower one, use the staged route and insert the separate `apb-aggregate` command.
+
+## `apb-proteobench benchmark`
+
+```text
+apb-proteobench benchmark SOURCE MODULE TARGET [--verbose]
+```
+
+This reads an APB2 result, applies and embeds the module experiment design, calculates diagnostics
+and scores, and writes one new APB2 result:
+
+```bash
+apb-proteobench benchmark \
+    results/fasta-checked.h5mu \
+    module_settings.toml \
+    results/scored.h5mu \
+    --verbose
+```
 
 ## `apb-proteobench convert`
 

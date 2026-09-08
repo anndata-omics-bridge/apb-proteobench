@@ -53,6 +53,8 @@ class ProteoBenchAnnotation:
                 levels=levels,
                 uns=deepcopy(self.parsed.uns),
                 metadata=recorded.parsed.metadata,
+                annotation_tables=deepcopy(self.parsed.annotation_tables),
+                feature_relations=deepcopy(self.parsed.feature_relations),
             ),
             reports=recorded.reports,
         )

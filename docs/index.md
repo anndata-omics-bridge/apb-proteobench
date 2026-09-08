@@ -12,47 +12,47 @@ and writes a portable APB2 result.
 | Command line | [CLI workflow](#command-line-interface) or [complete CLI reference](cli.md) | shell use, scripts, and workflow engines |
 | Python | [Python workflow](#python-api) or [complete API reference](api.md) | libraries, notebooks, and custom pipelines |
 
-Both interfaces expose the same three explicit operations:
+The interfaces expose two primary routes:
 
 ```text
-vendor table + search parameters
-    -> convert
-    -> APB2 result
+direct:  vendor table + parameters + FASTA + module -> checked + scored MuData
 
-APB2 result + ProteoBench module TOML
-    -> annotate
-    -> annotated APB2 result
-
-annotated APB2 result
-    -> score
-    -> scored APB2 result
+staged:  vendor table -> APB2 result -> FASTA check -> [aggregation] -> scored result
+         apb2 convert   apb-fasta       apb-aggregate    apb-proteobench
 ```
 
-Conversion is optional when an APB2 result already exists. Annotation stores the validated module
-with the result, so scoring needs neither a preset name nor the module file a second time.
+Neither route aggregates. APB ProteoBench declares only APB2 and APB FASTA; the optional
+aggregation step is reached through the separate `apb-aggregate` CLI, never as a library import.
+
+Use the direct route for one final artifact. Use the staged route when intermediates need to be
+inspected, cached, or reused, or when the scored level must be derived from a lower one. Existing APB2 results can enter at either FASTA checking or
+ProteoBench benchmarking. Fine-grained `convert`, `annotate`, and `score` operations remain
+available.
 
 ## Command-line interface
 
-Start directly from a vendor table:
+Run everything from the raw vendor files:
 
 ```bash
-apb-proteobench convert report.tsv \
+apb-proteobench run report.tsv proteins.fasta \
     --params search-parameters.txt \
+    --module module_settings.toml \
     --software spectronaut \
-    --output results/converted
-apb-proteobench annotate \
-    results/converted.h5mu \
-    module_settings.toml \
-    results/annotated.h5mu
-apb-proteobench score \
-    results/annotated.h5mu \
-    results/scored.h5mu \
-    --verbose
+    --output results/scored.h5mu
 ```
 
-With no level, `convert` writes every compatible level to `results/converted.h5mu`. Pass a level
-after the vendor table—for example, `report.tsv ion`—to write one h5ad instead. The
-[end-to-end guide](workflow.md) covers both starting points; the [CLI reference](cli.md) lists every
+Or retain each boundary as an artifact:
+
+```bash
+apb2 convert report.tsv --params search-parameters.txt --output results/all
+apb-fasta verify-peptides results/all.h5mu proteins.fasta --output results/checked.h5mu
+apb-aggregate ion protein sum results/checked.h5mu results/aggregated.h5mu
+apb-proteobench benchmark results/aggregated.h5mu module_settings.toml results/scored.h5mu
+```
+
+The aggregation call is conditional and belongs to `apb-aggregate`, not to this package: include it only when the level named in `module_settings.toml` is not the level the vendor table reports, chaining one call per source level. Otherwise `benchmark` reads `results/checked.h5mu` directly.
+
+The [end-to-end guide](workflow.md) explains both routes; the [CLI reference](cli.md) lists every
 argument and option.
 
 ## Python API
@@ -62,26 +62,18 @@ File-to-file functions mirror the complete CLI operations and return typed resul
 ```python
 from pathlib import Path
 
-from apb_proteobench.api import annotate_result, convert_vendor_result, score_result
+from apb_proteobench.api import run_vendor_benchmark
 
-conversion = convert_vendor_result(
+result = run_vendor_benchmark(
     Path("report.tsv"),
     Path("search-parameters.txt"),
-    Path("results/converted.h5mu"),
+    (Path("proteins.fasta"),),
+    Path("module_settings.toml"),
+    Path("results/scored.h5mu"),
     software="spectronaut",
 )
-print(conversion.software, list(conversion.parsed.levels))
-
-annotate_result(
-    Path("results/converted.h5mu"),
-    Path("module_settings.toml"),
-    Path("results/annotated.h5mu"),
-)
-scored = score_result(
-    Path("results/annotated.h5mu"),
-    Path("results/scored.h5mu"),
-)
-print(scored.analysis.scores.nr_feature)
+print(result.software, list(result.parsed.levels))
+print(result.analysis.scores.nr_feature)
 ```
 
 The API also exposes the annotation parser, storage-neutral calculation workflow, and replaceable
@@ -95,7 +87,9 @@ software, versions, file types, and quantification levels.
 
 | Operation | Accepted input | Output |
 | --- | --- | --- |
+| `run` | vendor table, parameters, one or more FASTAs, and module TOML | FASTA-checked, scored all-level `.h5mu` |
 | `convert` | supported vendor table plus search-parameter file | one-level `.h5ad` or all-level `.h5mu` |
+| `benchmark` | APB2 result plus module TOML | annotated and scored APB2 result |
 | `annotate` | APB2 h5ad, h5mu, Parquet, or DuckDB result plus module TOML | APB2 h5ad, h5mu, Parquet, or DuckDB result |
 | `score` | annotated APB2 h5ad, h5mu, Parquet, or DuckDB result | scored APB2 h5ad, h5mu, Parquet, or DuckDB result |
 

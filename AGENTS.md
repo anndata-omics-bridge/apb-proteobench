@@ -25,6 +25,8 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 - `calculation/` contains no AnnData, MuData, result I/O, logging, or CLI behavior.
 - `configuration/` is the inward Pydantic/TOML boundary and imports no outer package module.
 - APB2 is an inward dependency through its public facades; APB2 must never import this package.
+- The only permitted APB dependencies are `apb2` and `apb-fasta`. Never import `apb_aggregate` or
+  any other sibling APB tool; reach aggregation through the `apb-aggregate` CLI as a separate step.
 - Keep HYE and HY configuration-driven. Do not add benchmark-name branches or preset catalogues.
 - Preserve `varm["proteobench"]` for feature diagnostics and the logical
   `uns["apb"]["proteobench"]` section for scores/provenance.

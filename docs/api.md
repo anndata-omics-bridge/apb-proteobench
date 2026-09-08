@@ -6,6 +6,58 @@ The Python API provides two levels of composition:
 - parser and workflow objects expose APB2's storage-neutral `ParsedLevels` between annotation,
   calculation, and persistence.
 
+## Run the complete vendor workflow
+
+`run_vendor_benchmark()` is the one-call API from raw vendor files to final scored MuData:
+
+```python
+from pathlib import Path
+
+from apb_proteobench.api import run_vendor_benchmark
+
+result = run_vendor_benchmark(
+    Path("report.tsv"),
+    Path("search-parameters.txt"),
+    (Path("human.fasta"), Path("contaminants.fasta")),
+    Path("module_settings.toml"),
+    Path("results/scored.h5mu"),
+    software="spectronaut",
+)
+
+print(result.fasta_reports.peptide_levels)
+print(result.analysis.scores.nr_feature)
+```
+
+It compiles and runs every compatible APB2 parser, verifies modification-stripped peptide sequences against the FASTA database, applies the ProteoBench design, scores the configured level, and persists once at the end. The target must be an exact `.h5mu` path.
+
+It performs no quantitative aggregation, and APB ProteoBench imports no aggregation package. The scored level must already exist in the vendor result.
+
+When the scored level must be derived from a lower one, aggregate as a separate staged step through the `apb-aggregate` CLI:
+
+```bash
+apb-aggregate ion protein sum \
+    results/fasta-checked.h5mu results/aggregated.h5mu
+```
+
+Reaching aggregation only as a subprocess is deliberate: it keeps APB ProteoBench's declared dependencies to APB2 and APB FASTA.
+
+## Benchmark an existing result
+
+`benchmark_result()` combines annotation and scoring while preserving the APB2 result boundary:
+
+```python
+from pathlib import Path
+
+from apb_proteobench.api import benchmark_result
+
+scored = benchmark_result(
+    Path("results/fasta-checked.h5mu"),
+    Path("module_settings.toml"),
+    Path("results/scored.h5mu"),
+)
+print(scored.analysis.scores.nr_feature)
+```
+
 ## Convert vendor results
 
 ### File-to-file facade

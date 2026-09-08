@@ -15,11 +15,13 @@ authors = [
 ]
 dependencies = [
     "apb2>=0.1,<0.2",
+    "apb-fasta>=0.1,<0.2",
     "cyclopts>=4,<5",
     "loguru>=0.7,<1",
     "numpy>=2,<3",
     "pandas>=2.3,<4",
     "polars>=1.38,<2",
+    "protein-fasta>=0.3,<0.4",
     "pydantic>=2.12,<3",
     "scipy>=1.16,<2",
 ]
@@ -118,3 +120,5 @@ known_first_party = ["apb_proteobench"]
 
 [tool.uv.sources]
 apb2 = { path = "../apb2", editable = true }
+apb-fasta = { path = "../apb-fasta", editable = true }
+protein-fasta = { path = "../protein_fasta", editable = true }

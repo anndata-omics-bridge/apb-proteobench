@@ -29,6 +29,13 @@ from apb2.parserV2.vendor_params.registry import parse_params
 from apb2.parserV2.vendor_parse_rules.document import SearchParameterEvidence
 from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
 from apb2.result_facade import read_parsed_levels, write_parsed_levels
+from apb_fasta.annotation import FastaAnnotationParser
+from apb_fasta.calculation.results import FastaAnnotationReports
+from apb_fasta.configuration import (
+    DEFAULT_FASTA_ANNOTATION_PARAMETERS,
+    FastaAnnotationParameters,
+)
+from protein_fasta.frame import ProteinDatabase, refseq, uniprotkb
 
 from apb_proteobench.annotation import ProteoBenchAnnotationParser
 from apb_proteobench.configuration.schema import ModuleSettings
@@ -71,6 +78,32 @@ class ScoredResult:
 
     input_path: Path
     output_path: Path
+    configuration: ModuleSettings
+    extracted: ExtractedProteoBenchLevel
+    analysis: ProteoBenchResult
+
+
+@dataclass(frozen=True, slots=True)
+class VendorBenchmarkResult:
+    """Complete raw-vendor workflow evidence and the final APB2 result."""
+
+    input_path: Path
+    parameters_path: Path
+    fasta_paths: tuple[Path, ...]
+    module_path: Path
+    output_path: Path
+    software: str
+    software_version: str | None
+    parsed: ParsedLevels
+    fasta_reports: FastaAnnotationReports
+    configuration: ModuleSettings
+    extracted: ExtractedProteoBenchLevel
+    analysis: ProteoBenchResult
+
+
+@dataclass(frozen=True, slots=True)
+class _AnalyzedResult:
+    parsed: ParsedLevels
     configuration: ModuleSettings
     extracted: ExtractedProteoBenchLevel
     analysis: ProteoBenchResult
@@ -150,6 +183,35 @@ def annotate_result(source: Path, module: Path, target: Path, /) -> AnnotationRe
     return result
 
 
+def benchmark_result(
+    source: Path,
+    module: Path,
+    target: Path,
+    /,
+    *,
+    diagnostic_method: DiagnosticMethod = _DEFAULT_DIAGNOSTICS,
+    scoring_method: ScoringMethod = _DEFAULT_SCORING,
+) -> ScoredResult:
+    """Annotate and score one existing APB2 result, then persist the replacement."""
+    _require_new_target(source, target)
+    parsed = read_parsed_levels(source)
+    annotated = ProteoBenchAnnotationParser.from_path(module).parse(parsed).annotate()
+    analyzed = _analyze_parsed(
+        annotated.parsed,
+        diagnostic_method=diagnostic_method,
+        scoring_method=scoring_method,
+    )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    write_parsed_levels(analyzed.parsed, target)
+    return ScoredResult(
+        input_path=source,
+        output_path=target,
+        configuration=analyzed.configuration,
+        extracted=analyzed.extracted,
+        analysis=analyzed.analysis,
+    )
+
+
 def score_result(
     source: Path,
     target: Path,
@@ -161,6 +223,117 @@ def score_result(
     """Score the configured APB level and persist a new result."""
     _require_new_target(source, target)
     parsed = read_parsed_levels(source)
+    analyzed = _analyze_parsed(
+        parsed,
+        diagnostic_method=diagnostic_method,
+        scoring_method=scoring_method,
+    )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    write_parsed_levels(analyzed.parsed, target)
+    return ScoredResult(
+        input_path=source,
+        output_path=target,
+        configuration=analyzed.configuration,
+        extracted=analyzed.extracted,
+        analysis=analyzed.analysis,
+    )
+
+
+def run_vendor_benchmark(
+    data: Path,
+    parameters_path: Path,
+    fasta_paths: tuple[Path, ...],
+    module: Path,
+    target: Path,
+    /,
+    *,
+    software: str | None = None,
+    parameters_software: str | None = None,
+    checks: AnnDataChecks = "standard",
+    fasta_parameters: FastaAnnotationParameters = DEFAULT_FASTA_ANNOTATION_PARAMETERS,
+    diagnostic_method: DiagnosticMethod = _DEFAULT_DIAGNOSTICS,
+    scoring_method: ScoringMethod = _DEFAULT_SCORING,
+) -> VendorBenchmarkResult:
+    """Convert, verify, annotate, score, and write one H5MU.
+
+    Quantitative aggregation is deliberately not part of this pipeline. Run the separate
+    ``apb-aggregate`` command between conversion and benchmarking when a scored level must
+    be derived from a lower one.
+
+    Args:
+        data: Vendor result table.
+        parameters_path: Vendor search-parameter file.
+        fasta_paths: One or more protein FASTA files.
+        module: ProteoBench module settings with the complete sample design.
+        target: Exact final output path ending in ``.h5mu``.
+        software: Optional vendor slug used to verify packaged-rule detection.
+        parameters_software: Optional independent parameter-parser slug.
+        checks: AnnData layer-contract validation level.
+        fasta_parameters: Peptide matching and reported-assignment settings.
+        diagnostic_method: ProteoBench diagnostic implementation.
+        scoring_method: ProteoBench scoring implementation.
+
+    Returns:
+        The final APB2 value plus conversion, FASTA, and scoring evidence.
+
+    Raises:
+        ValueError: Inputs are incomplete, incompatible, or target an unsafe output.
+    """
+    _require_new_target(data, target)
+    _require_vendor_target(target, None)
+    if not fasta_paths:
+        raise ValueError("at least one FASTA path is required")
+    source, detected, parameters = _detect_vendor(
+        data,
+        parameters_path,
+        software=software,
+        parameters_software=parameters_software,
+    )
+    provenance = _vendor_provenance(detected, parameters, parameters_path)
+    parsed = _parse_all_levels_in_memory(
+        source,
+        detected,
+        search_parameter_evidence(parameters),
+        provenance,
+        checks=checks,
+    )
+    proteins = ProteinDatabase(uniprotkb, refseq).parse(fasta_paths)
+    verified = FastaAnnotationParser(
+        parsed,
+        proteins,
+        parameters=fasta_parameters,
+    ).verify_peptides()
+    annotated = ProteoBenchAnnotationParser.from_path(module).parse(verified.parsed).annotate()
+    analyzed = _analyze_parsed(
+        annotated.parsed,
+        diagnostic_method=diagnostic_method,
+        scoring_method=scoring_method,
+    )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    write_parsed_levels(analyzed.parsed, target)
+    return VendorBenchmarkResult(
+        input_path=data,
+        parameters_path=parameters_path,
+        fasta_paths=fasta_paths,
+        module_path=module,
+        output_path=target,
+        software=detected.software,
+        software_version=detected.version,
+        parsed=analyzed.parsed,
+        fasta_reports=verified.reports,
+        configuration=analyzed.configuration,
+        extracted=analyzed.extracted,
+        analysis=analyzed.analysis,
+    )
+
+
+def _analyze_parsed(
+    parsed: ParsedLevels,
+    /,
+    *,
+    diagnostic_method: DiagnosticMethod,
+    scoring_method: ScoringMethod,
+) -> _AnalyzedResult:
     configuration = embedded_configuration(parsed)
     extracted = extract_level(parsed, configuration)
     analysis = analyze_level(
@@ -169,11 +342,8 @@ def score_result(
         diagnostic_method,
         scoring_method,
     )
-    target.parent.mkdir(parents=True, exist_ok=True)
-    write_parsed_levels(persist_result(parsed, extracted, analysis), target)
-    return ScoredResult(
-        input_path=source,
-        output_path=target,
+    return _AnalyzedResult(
+        parsed=persist_result(parsed, extracted, analysis),
         configuration=configuration,
         extracted=extracted,
         analysis=analysis,
@@ -290,3 +460,33 @@ def _parse_all_levels(
     )
     writer.write(parsed, target)
     return parsed
+
+
+def _parse_all_levels_in_memory(
+    source: SingleFile,
+    detected: DetectedRuleDocument,
+    evidence: SearchParameterEvidence,
+    provenance: dict[str, JsonValue],
+    *,
+    checks: AnnDataChecks,
+) -> ParsedLevels:
+    parsers, _writer = compile_mudata_parsers(
+        document=detected.document,
+        levels=detected.document.levels,
+        parameter_evidence=evidence,
+        source=source,
+        checks=checks,
+    )
+    levels: dict[ParsedLevelName, ParsedLevel] = {}
+    for parser in parsers:
+        parsed_level = parser.parse()
+        parsed_level.uns.update(provenance)
+        levels[cast(ParsedLevelName, parser.level)] = parsed_level
+    return ParsedLevels(
+        levels=levels,
+        uns={
+            "produced_by": PRODUCER,
+            **provenance,
+            "quantification_levels": list(levels),
+        },
+    )

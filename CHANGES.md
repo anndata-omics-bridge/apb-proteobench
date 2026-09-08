@@ -2,10 +2,20 @@
 
 ## Unreleased
 
+- Preserve APB2 root annotation tables and feature relations while annotating or persisting
+  ProteoBench results, so independently authored long-form annotations survive the workflow.
 - Added `apb-proteobench convert`, which starts at a vendor table and composes APB2's packaged-rule
   detection and compiler/parser API directly.
 - Added `convert_vendor_result()` for single-level h5ad and all-compatible-level h5mu conversion,
   returning the parsed in-memory APB2 result.
+- Added `apb-proteobench benchmark` and `benchmark_result()` to annotate and score an existing
+  APB2 result in one result-to-result operation.
+- Added `apb-proteobench run` and `run_vendor_benchmark()` for the complete vendor-table → APB2 →
+  FASTA peptide check → ProteoBench workflow, persisting one final h5mu result. It scores the
+  level named in the module settings as the vendor table reports it.
+- Quantitative aggregation is deliberately outside this package. `apb-aggregate` is reached only
+  as a separate CLI step, so `apb-proteobench` declares no dependency on it and its only APB
+  dependencies are `apb2` and `apb-fasta`.
 - Packaged all 11 current ProteoBench module TOMLs with stable catalogue names, checksums, and
   upstream Apache-2.0 provenance. The eight quantitative HYE/HY modules used by legacy APB are
   validated and loadable; plasma, de novo, and entrapment are retained with explicit unsupported
