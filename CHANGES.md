@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Calculations always compute in float64. A value-dependent heuristic previously inferred the
+  arithmetic precision by testing whether the data survived a float32 round-trip, so a float64
+  matrix of round numbers silently lost half its mantissa. Storage precision is not arithmetic
+  precision: callers may still pass float32, which widens on entry. Removed `FloatDType`,
+  `_is_float32_backed`, `_as_float_array` and the `source_dtype` threading.
+  On the single-cell HY fixture the epsilon residual falls from 1.8e-07 to 1.1e-16, one ulp,
+  which also removes an x86_64/arm64 platform difference that exceeded the test tolerance.
+  The legacy golden intermediate still matches within 7.1e-08 -- float32 noise -- so only its
+  bit-exact digest was regenerated.
 - Preserve APB2 root annotation tables and feature relations while annotating or persisting
   ProteoBench results, so independently authored long-form annotations survive the workflow.
 - Added `apb-proteobench convert`, which starts at a vendor table and composes APB2's packaged-rule

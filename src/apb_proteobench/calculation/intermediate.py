@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from typing import cast, overload
+from typing import cast
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
 
-from apb_proteobench.calculation.contracts import FloatArray, FloatDType, QuantMatrix
+from apb_proteobench.calculation.contracts import QuantMatrix
 from apb_proteobench.calculation.mapping import (
     map_reported_proteins,
     render_proteobench_features,
@@ -104,7 +104,6 @@ class _LegacyComputation:
     decoys: NDArray[np.bool_]
     module_settings: ModuleSettings
     design: RunDesign
-    source_dtype: FloatDType
     conditions: tuple[str, ...]
     level: QuantificationLevel
 
@@ -118,7 +117,6 @@ class _LegacyAssembly:
     included: NDArray[np.bool_]
     design: RunDesign
     level: QuantificationLevel
-    source_dtype: FloatDType
     species: tuple[str, ...]
     conditions: tuple[str, ...]
 
@@ -213,13 +211,11 @@ def compute_intermediate(
     contaminants = _contaminants(proteins)
     decoys = np.zeros(len(feature_ids), dtype=np.bool_)
 
-    source_dtype = np.float32 if _is_float32_backed(matrix) else np.float64
     conditions = tuple(sorted(set(design.conditions.tolist())))
     stats, nr_observed = _derive_condition_statistics(
         matrix,
         design,
         conditions,
-        source_dtype,
     )
 
     multi_species = unique > module_settings.general.min_count_multispec
@@ -252,7 +248,6 @@ def compute_intermediate(
             decoys=decoys,
             module_settings=module_settings,
             design=design,
-            source_dtype=source_dtype,
             conditions=conditions,
             level=level,
         )
@@ -293,7 +288,6 @@ def _compute_legacy_intermediate(inputs: _LegacyComputation) -> pd.DataFrame:
         group_codes,
         len(unique_features),
         eligible,
-        inputs.source_dtype,
     )
 
     grouped_flags: dict[str, NDArray[np.bool_]] = {}
@@ -307,7 +301,6 @@ def _compute_legacy_intermediate(inputs: _LegacyComputation) -> pd.DataFrame:
         matrix,
         inputs.design,
         inputs.conditions,
-        inputs.source_dtype,
     )
 
     pre_unique = nr_observed > 0
@@ -337,7 +330,6 @@ def _compute_legacy_intermediate(inputs: _LegacyComputation) -> pd.DataFrame:
             included=included,
             design=inputs.design,
             level=inputs.level,
-            source_dtype=inputs.source_dtype,
             species=tuple(inputs.module_settings.species_expected_ratio),
             conditions=inputs.conditions,
         )
@@ -371,7 +363,7 @@ def _assemble_legacy_intermediate(inputs: _LegacyAssembly) -> pd.DataFrame:
         key=lambda row: inputs.design.raw_files[row],
     )
     for row in raw_order:
-        values = _matrix_row(inputs.matrix, row, inputs.source_dtype)
+        values = _matrix_row(inputs.matrix, row)
         values[~np.isfinite(values) | (values <= 0)] = np.nan
         legacy[inputs.design.raw_files[row]] = values[selected]
 
@@ -396,14 +388,13 @@ def _derive_condition_statistics(
     matrix: QuantMatrix,
     design: RunDesign,
     conditions: tuple[str, ...],
-    source_dtype: FloatDType,
 ) -> tuple[dict[str, NDArray[np.float64]], NDArray[np.int64]]:
     """Derive per-condition statistics without imposing a feature identity."""
     statistics: dict[str, NDArray[np.float64]] = {}
     condition_counts: dict[str, NDArray[np.int64]] = {}
     for condition in conditions:
         rows = np.flatnonzero(design.conditions == condition)
-        condition_statistics = _condition_statistics(matrix, rows, source_dtype)
+        condition_statistics = _condition_statistics(matrix, rows)
         condition_counts[condition] = condition_statistics.count
         for metric, metric_values in condition_statistics.values.items():
             statistics[f"{metric}_{condition}"] = metric_values
@@ -481,20 +472,16 @@ def _collapse_positive_matrix(
     group_codes: NDArray[np.intp],
     n_groups: int,
     eligible: NDArray[np.bool_],
-    dtype: FloatDType,
-) -> FloatArray:
+) -> NDArray[np.float64]:
     """Sum positive canonical-feature values into ProteoBench feature groups."""
     rows, _ = _matrix_shape(matrix)
-    if dtype is np.float32:
-        collapsed = np.full((rows, n_groups), np.nan, dtype=np.float32)
-    else:
-        collapsed = np.full((rows, n_groups), np.nan, dtype=np.float64)
+    collapsed = np.full((rows, n_groups), np.nan, dtype=np.float64)
     for row in range(rows):
-        values = _matrix_row(matrix, row, dtype)
+        values = _matrix_row(matrix, row)
         valid = eligible & np.isfinite(values) & (values > 0)
         if not np.any(valid):
             continue
-        totals = np.zeros(n_groups, dtype=dtype)
+        totals = np.zeros(n_groups, dtype=np.float64)
         np.add.at(totals, group_codes[valid], values[valid])
         present = np.zeros(n_groups, dtype=bool)
         np.logical_or.at(present, group_codes[valid], True)
@@ -505,7 +492,6 @@ def _collapse_positive_matrix(
 def _condition_statistics(
     matrix: QuantMatrix,
     rows: NDArray[np.intp],
-    source_dtype: FloatDType,
 ) -> _ConditionStatistics:
     _, n_vars = _matrix_shape(matrix)
     result: dict[str, NDArray[np.float64]] = {
@@ -518,7 +504,7 @@ def _condition_statistics(
     counts = np.zeros(n_vars, dtype=np.int64)
     for start in range(0, n_vars, _CHUNK_SIZE):
         stop = min(start + _CHUNK_SIZE, n_vars)
-        block = _matrix_block(matrix, rows, start, stop, source_dtype)
+        block = _matrix_block(matrix, rows, start, stop)
         valid = np.isfinite(block) & (block > 0)
         count = np.count_nonzero(valid, axis=0)
         intensity_mean_native, intensity_std = _mean_and_sample_std(block, valid, count)
@@ -542,10 +528,10 @@ def _condition_statistics(
 
 
 def _mean_and_sample_std(
-    values: FloatArray,
+    values: NDArray[np.float64],
     valid: NDArray[np.bool_],
     count: NDArray[np.int64],
-) -> tuple[FloatArray, NDArray[np.float64]]:
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     native_sum = np.sum(np.where(valid, values, 0), axis=0, dtype=values.dtype)
     mean = np.divide(
         native_sum,
@@ -587,14 +573,6 @@ def _contaminants(proteins: pd.Series) -> NDArray[np.bool_]:
     return proteins.str.contains("Cont_", regex=False, na=False).to_numpy(dtype=bool)
 
 
-def _is_float32_backed(matrix: QuantMatrix) -> bool:
-    values = np.asarray(matrix).ravel() if isinstance(matrix, np.ndarray) else matrix.data
-    finite = np.asarray(values)[np.isfinite(values)]
-    if not finite.size:
-        return False
-    return np.array_equal(finite, finite.astype(np.float32).astype(finite.dtype))
-
-
 def _matrix_shape(matrix: QuantMatrix) -> tuple[int, int]:
     shape = matrix.shape
     if shape is None or len(shape) != 2:
@@ -607,34 +585,14 @@ def _matrix_block(
     rows: NDArray[np.intp],
     start: int,
     stop: int,
-    dtype: FloatDType,
-) -> FloatArray:
+) -> NDArray[np.float64]:
     if isinstance(matrix, np.ndarray):
         block = matrix[rows, start:stop]
     else:
         block = matrix[rows, start:stop].toarray()
-    return _as_float_array(block, dtype)
+    return np.asarray(block, dtype=np.float64)
 
 
-def _matrix_row(
-    matrix: QuantMatrix,
-    row: int,
-    dtype: FloatDType,
-) -> FloatArray:
+def _matrix_row(matrix: QuantMatrix, row: int, /) -> NDArray[np.float64]:
     values = matrix[row, :] if isinstance(matrix, np.ndarray) else matrix[row, :].toarray()
-    return _as_float_array(values, dtype).reshape(-1).copy()
-
-
-@overload
-def _as_float_array(values: FloatArray, dtype: type[np.float32]) -> NDArray[np.float32]: ...
-
-
-@overload
-def _as_float_array(values: FloatArray, dtype: type[np.float64]) -> NDArray[np.float64]: ...
-
-
-def _as_float_array(values: FloatArray, dtype: FloatDType) -> FloatArray:
-    """Materialize values in one of the two supported computation precisions."""
-    if dtype is np.float32:
-        return np.asarray(values, dtype=np.float32)
-    return np.asarray(values, dtype=np.float64)
+    return np.asarray(values, dtype=np.float64).reshape(-1).copy()

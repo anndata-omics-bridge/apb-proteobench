@@ -11,8 +11,10 @@ from scipy.sparse import csc_array, csc_matrix, csr_array, csr_matrix
 
 from apb_proteobench.configuration.schema import QuantificationLevel
 
+# Callers may hand over either precision, because a deserialized AnnData layer is often
+# float32. Calculations always widen to float64: storage precision is not arithmetic
+# precision, and narrowing costs half the mantissa for no benefit.
 type FloatArray = NDArray[np.float32] | NDArray[np.float64]
-type FloatDType = type[np.float32] | type[np.float64]
 type CompressedSparseMatrix[ScalarT: (np.float32, np.float64)] = (
     csr_matrix[ScalarT] | csc_matrix[ScalarT] | csr_array[ScalarT] | csc_array[ScalarT]
 )

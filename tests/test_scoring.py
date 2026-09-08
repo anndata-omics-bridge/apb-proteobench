@@ -22,7 +22,10 @@ from apb_proteobench.workflow import (
 from conftest import matrix_values, module_settings, quantitative_input
 
 GOLDEN = Path(__file__).parent / "data" / "small_legacy_intermediate.txt"
-GOLDEN_HASH = "9077847f733c12b1297a4928a0b4c509e50e4ed9"
+# Fingerprint of the rendered intermediate. Regenerated 2026-09-08 when calculations
+# stopped narrowing to float32: the golden CSV above still matches within 7.1e-08,
+# which is float32 noise, so only the bit-exact digest moved.
+GOLDEN_HASH = "35f49e1b9efe160c5afeca4ca2fdaecae3e65a8e"
 
 
 def test_hye_intermediate_matches_legacy_golden() -> None:
