@@ -9,18 +9,22 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal
 
-from apb2.api import QuantificationLevel
+from apb2.api import (
+    ParseRuleCompiler,
+    QuantificationLevel,
+    read_parsed_levels,
+    write_parsed_levels,
+)
+from apb_fasta.api import FastaAnnotator
+from apb_fasta.calculation.results import FastaAnnotationReports
 from apb_fasta.configuration import FastaAnnotationParameters
 from cyclopts import App, Parameter
 from loguru import logger
+from protein_fasta.frame import ProteinDatabase, refseq, uniprotkb
 from pydantic import ValidationError
 
-from apb_proteobench.api import (
-    ScoredResult,
-    VendorBenchmarkResult,
-    benchmark_result,
-    run_vendor_benchmark,
-)
+from apb_proteobench.api import ProteoBenchAnalysisResult, ProteoBenchAnalyzer
+from apb_proteobench.configuration.load import load_module
 from apb_proteobench.integration import (
     ALL_ABUNDANCE_LAYERS,
     PRIMARY_LAYER,
@@ -144,12 +148,16 @@ def benchmark(
         logger.error(str(error))
         return 2
     try:
-        result = benchmark_result(source, module, target, selection=selection)
-        _export_result_performance(result, result_performance)
+        _require_new_target(source, target)
+        parsed = read_parsed_levels(source)
+        result = ProteoBenchAnalyzer(load_module(module), selection=selection).analyze(parsed)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        write_parsed_levels(result.parsed, target)
+        _export_result_performance(result, {}, result_performance)
     except (OSError, ValueError, ValidationError) as error:
         logger.error(str(error))
         return 1
-    report_score(result, verbose=verbose)
+    report_score(result, source, target, verbose=verbose)
     return 0
 
 
@@ -193,38 +201,67 @@ def run(
         logger.error(str(error))
         return 2
     try:
-        result = run_vendor_benchmark(
+        _require_new_target(data, options.output)
+        if not fasta_paths:
+            raise ValueError("at least one FASTA path is required")
+        compiler = ParseRuleCompiler(
             data,
             options.params,
-            fasta_paths,
-            options.module,
-            options.output,
-            level=options.level,
+            requested_levels=None if options.level is None else (options.level,),
+            checks="strict" if options.strict else "standard",
             software=options.software,
             parameters_software=options.params_software,
-            checks="strict" if options.strict else "standard",
-            selection=selection,
-            fasta_parameters=FastaAnnotationParameters(
+        )
+        parsed = compiler.compile().parse()
+        proteins = ProteinDatabase(uniprotkb, refseq).parse(fasta_paths)
+        verified = FastaAnnotator(
+            proteins,
+            parameters=FastaAnnotationParameters(
                 protein_group_separator=options.protein_group_separator,
                 matcher_backend=options.backend,
                 il_equivalent=options.il_equivalent,
             ),
-        )
-        _export_result_performance(result.scored, options.result_performance)
+        ).verify_peptides(parsed)
+        result = ProteoBenchAnalyzer(
+            load_module(options.module),
+            selection=selection,
+        ).analyze(verified.parsed)
+        options.output.parent.mkdir(parents=True, exist_ok=True)
+        write_parsed_levels(result.parsed, options.output)
+        search_parameters = compiler.parameters.model_dump(mode="json")
+        _export_result_performance(result, search_parameters, options.result_performance)
     except (OSError, ValueError, ValidationError) as error:
         logger.error(str(error))
         return 1
-    _report_vendor_benchmark(result, verbose=verbose)
+    _report_vendor_benchmark(
+        compiler.detection.software,
+        compiler.detection.version,
+        verified.reports,
+        result,
+        data,
+        options.output,
+        verbose=verbose,
+    )
     return 0
 
 
-def _report_vendor_benchmark(result: VendorBenchmarkResult, /, *, verbose: bool) -> None:
+def _report_vendor_benchmark(
+    software: str,
+    software_version: str | None,
+    fasta_reports: FastaAnnotationReports,
+    result: ProteoBenchAnalysisResult,
+    source: Path,
+    target: Path,
+    /,
+    *,
+    verbose: bool,
+) -> None:
     logger.info(
         "vendor={} software_version={}",
-        result.software,
-        result.software_version or "missing",
+        software,
+        software_version or "missing",
     )
-    for level, coverage in result.fasta_reports.peptide_levels.items():
+    for level, coverage in fasta_reports.peptide_levels.items():
         logger.info(
             "level={} peptides_in_fasta={}/{} unmatched={}",
             level,
@@ -232,7 +269,7 @@ def _report_vendor_benchmark(result: VendorBenchmarkResult, /, *, verbose: bool)
             coverage.feature_count,
             coverage.unmatched_feature_count,
         )
-    report_score(result.scored, verbose=verbose)
+    report_score(result, source, target, verbose=verbose)
 
 
 class _LayerSelectionUsageError(ValueError):
@@ -257,7 +294,12 @@ def _layer_selection(
     return ALL_ABUNDANCE_LAYERS
 
 
-def _export_result_performance(result: ScoredResult, target: Path | None, /) -> None:
+def _export_result_performance(
+    result: ProteoBenchAnalysisResult,
+    search_parameters: Mapping[str, object],
+    target: Path | None,
+    /,
+) -> None:
     if target is None:
         return
     if len(result.layers) != 1:
@@ -268,7 +310,7 @@ def _export_result_performance(result: ScoredResult, target: Path | None, /) -> 
             "result-performance export currently supports only the ion level; "
             f"got {selected.level_name!r}"
         )
-    datapoint = _proteobot_datapoint(result, selected.layer_name)
+    datapoint = _proteobot_datapoint(result, search_parameters, selected.layer_name)
     written = write_result_performance_bundle(
         selected.analysis.diagnostics.legacy,
         datapoint,
@@ -278,12 +320,17 @@ def _export_result_performance(result: ScoredResult, target: Path | None, /) -> 
     logger.info("wrote ProteoBot datapoint {}", written.proteobot_json)
 
 
-def _proteobot_datapoint(result: ScoredResult, layer_name: str, /) -> dict[str, object]:
+def _proteobot_datapoint(
+    result: ProteoBenchAnalysisResult,
+    search_parameters: Mapping[str, object],
+    layer_name: str,
+    /,
+) -> dict[str, object]:
     selected = result.layers[layer_name]
     score_document: object = json.loads(selected.analysis.scores.model_dump_json())
     if not isinstance(score_document, dict):
         raise TypeError("ProteoBench scores did not serialize to a JSON object")
-    parameters = result.search_parameters
+    parameters = search_parameters
     intermediate_hash = selected.analysis.scores.intermediate_hash
     software_name = _text_parameter(parameters, "software_name") or "unknown"
     datapoint: dict[str, object] = {
@@ -391,6 +438,13 @@ def _modifications_parameter(parameters: Mapping[str, object], name: str, /) -> 
         if isinstance(modification_name, str):
             names.append(modification_name)
     return ", ".join(names) if names else None
+
+
+def _require_new_target(source: Path, target: Path, /) -> None:
+    if source.resolve() == target.resolve():
+        raise ValueError("output must differ from input")
+    if target.exists():
+        raise ValueError(f"output already exists: {target}")
 
 
 def main() -> int:

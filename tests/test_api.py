@@ -2,33 +2,33 @@
 
 from __future__ import annotations
 
+import ast
 import json
-from copy import deepcopy
 from pathlib import Path
 
 import polars as pl
 import pytest
+from apb2.api import ParsedLevels, read_parsed_levels, write_parsed_levels
 from apb2.result_facade import (
     AnnotationTable,
     FeatureRelation,
     FinalLayerTable,
     JsonValue,
-    ParsedLevels,
-    read_parsed_levels,
-    write_parsed_levels,
 )
 from loguru import logger
 
 from apb_proteobench.annotation import ProteoBenchAnnotationParser
-from apb_proteobench.api import annotate_result, benchmark_result, score_result
+from apb_proteobench.api import ProteoBenchAnalysisResult, ProteoBenchAnalyzer
 from apb_proteobench.calculation.contracts import QuantitativeLevelInput
 from apb_proteobench.calculation.intermediate import IntermediateResult
 from apb_proteobench.calculation.metrics import ProteoBenchScores
 from apb_proteobench.cli import app
+from apb_proteobench.configuration.load import load_module
 from apb_proteobench.configuration.schema import ModuleSettings
 from apb_proteobench.integration import (
     ALL_ABUNDANCE_LAYERS,
     PRIMARY_LAYER,
+    LayerSelection,
     NamedAbundanceLayer,
 )
 from apb_proteobench.workflow import (
@@ -39,10 +39,43 @@ from apb_proteobench.workflow import (
 from conftest import module_settings, parsed_result, quantitative_input, write_module
 
 
-def test_public_api_uses_only_apb2_public_facades() -> None:
-    source = (Path(__file__).parents[1] / "src/apb_proteobench/api.py").read_text(encoding="utf-8")
+def test_package_uses_apb2_public_api_for_compilation_and_result_io() -> None:
+    public_names = {
+        "ParseRuleCompiler",
+        "ParsedLevels",
+        "QuantificationLevel",
+        "read_parsed_levels",
+        "write_parsed_levels",
+    }
+    package = Path(__file__).parents[1] / "src/apb_proteobench"
+    for path in package.rglob("*.py"):
+        document = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(document):
+            if not isinstance(node, ast.ImportFrom) or node.module is None:
+                continue
+            assert not node.module.startswith("apb2.parserV2"), path
+            if node.module == "apb2.result_facade":
+                bypassed = public_names.intersection(name.name for name in node.names)
+                assert not bypassed, f"{path} bypasses apb2.api for {sorted(bypassed)}"
 
-    assert "apb2.parserV2" not in source
+
+def test_public_api_is_an_in_memory_proteobench_boundary() -> None:
+    path = Path(__file__).parents[1] / "src/apb_proteobench/api.py"
+    document = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    imported = {
+        (node.module, name.name)
+        for node in ast.walk(document)
+        if isinstance(node, ast.ImportFrom) and node.module is not None
+        for name in node.names
+    }
+
+    assert {item for item in imported if item[0].startswith("apb2")} == {
+        ("apb2.api", "ParsedLevels")
+    }
+    assert not any(
+        module == "pathlib" or module.startswith(("apb_fasta", "protein_fasta"))
+        for module, _name in imported
+    )
 
 
 def test_annotation_requires_exact_coverage_and_embeds_complete_configuration(
@@ -137,17 +170,15 @@ def test_annotation_scoring_and_roundtrip_through_every_apb_format(
     suffix: str,
     tmp_path: Path,
 ) -> None:
-    source = tmp_path / f"source{suffix}"
-    annotated = tmp_path / f"annotated{suffix}"
     scored = tmp_path / f"scored{suffix}"
     module = tmp_path / "module.toml"
     write_module(module)
-    write_parsed_levels(parsed_result(), source)
-
-    annotate_result(source, module, annotated)
-    result = score_result(annotated, scored)
+    parsed = parsed_result()
+    loaded = load_module(module)
+    baseline = ProteoBenchAnnotationParser(loaded).parse(parsed).annotate().parsed
+    result = ProteoBenchAnalyzer(loaded).analyze(parsed)
+    write_parsed_levels(result.parsed, scored)
     restored = read_parsed_levels(scored)
-    baseline = read_parsed_levels(annotated)
 
     assert result.layers["Intensity"].analysis.scores.nr_feature == 3
     assert restored.levels["ion"].varm["proteobench:Intensity"].height == 6
@@ -177,27 +208,21 @@ def test_annotation_scoring_and_roundtrip_through_every_apb_format(
         assert matrix.values.schema == after.layers[name].values.schema
     for name, table in before.varm.items():
         assert table.equals(after.varm[name])
-    with pytest.raises(ValueError, match="already exists"):
-        score_result(annotated, scored)
-    target = tmp_path / f"rescored{suffix}"
-    with pytest.raises(ValueError, match="refusing to overwrite"):
-        score_result(scored, target)
-    assert not target.exists()
+    with pytest.raises(ValueError, match="annotation columns already present"):
+        ProteoBenchAnalyzer(loaded).analyze(result.parsed)
 
 
-def test_benchmark_result_annotates_and_scores_in_one_call(tmp_path: Path) -> None:
-    source = tmp_path / "source.parquet"
+def test_analyzer_annotates_and_scores_without_physical_io(tmp_path: Path) -> None:
     target = tmp_path / "benchmarked.parquet"
     module = tmp_path / "module.toml"
     write_module(module)
-    write_parsed_levels(parsed_result(), source)
 
-    result = benchmark_result(source, module, target)
+    result = ProteoBenchAnalyzer(load_module(module)).analyze(parsed_result())
 
-    restored = read_parsed_levels(target)
     assert result.layers["Intensity"].analysis.scores.nr_feature == 3
-    assert "sample_name" in restored.levels["ion"].obs.frame
-    assert "proteobench:Intensity" in restored.levels["ion"].varm
+    assert "sample_name" in result.parsed.levels["ion"].obs.frame
+    assert "proteobench:Intensity" in result.parsed.levels["ion"].varm
+    assert not target.exists()
 
 
 def _multi_layer_result() -> ParsedLevels:
@@ -218,27 +243,23 @@ def _multi_layer_result() -> ParsedLevels:
     return parsed
 
 
-def _write_annotated_result(
+def _analyze_result(
     folder: Path,
     parsed: ParsedLevels,
     /,
     *,
-    suffix: str = ".parquet",
-) -> Path:
-    source = folder / f"source{suffix}"
-    annotated = folder / f"annotated{suffix}"
+    selection: LayerSelection = ALL_ABUNDANCE_LAYERS,
+) -> ProteoBenchAnalysisResult:
     module = folder / "module.toml"
     write_module(module)
-    write_parsed_levels(parsed, source)
-    annotate_result(source, module, annotated)
-    return annotated
+    return ProteoBenchAnalyzer(load_module(module), selection=selection).analyze(parsed)
 
 
 def test_default_selection_scores_every_abundance_layer(tmp_path: Path) -> None:
-    annotated = _write_annotated_result(tmp_path, _multi_layer_result())
     target = tmp_path / "scored.parquet"
 
-    result = score_result(annotated, target)
+    result = _analyze_result(tmp_path, _multi_layer_result())
+    write_parsed_levels(result.parsed, target)
 
     restored = read_parsed_levels(target)
     assert list(result.layers) == ["Intensity", "LFQ/Intensity"]
@@ -256,10 +277,10 @@ def test_default_selection_scores_every_abundance_layer(tmp_path: Path) -> None:
 
 
 def test_primary_selection_scores_only_x_layer(tmp_path: Path) -> None:
-    annotated = _write_annotated_result(tmp_path, _multi_layer_result())
     target = tmp_path / "scored.parquet"
 
-    result = score_result(annotated, target, selection=PRIMARY_LAYER)
+    result = _analyze_result(tmp_path, _multi_layer_result(), selection=PRIMARY_LAYER)
+    write_parsed_levels(result.parsed, target)
 
     restored = read_parsed_levels(target)
     assert list(result.layers) == ["Intensity"]
@@ -273,14 +294,14 @@ def test_primary_selection_scores_only_x_layer(tmp_path: Path) -> None:
 
 
 def test_named_selection_scores_one_abundance_layer(tmp_path: Path) -> None:
-    annotated = _write_annotated_result(tmp_path, _multi_layer_result())
     target = tmp_path / "scored.parquet"
 
-    result = score_result(
-        annotated,
-        target,
+    result = _analyze_result(
+        tmp_path,
+        _multi_layer_result(),
         selection=NamedAbundanceLayer("LFQ/Intensity"),
     )
+    write_parsed_levels(result.parsed, target)
 
     restored = read_parsed_levels(target)
     assert list(result.layers) == ["LFQ/Intensity"]
@@ -298,10 +319,14 @@ def test_all_abundance_layers_round_trip_in_declared_order(
     suffix: str,
     tmp_path: Path,
 ) -> None:
-    annotated = _write_annotated_result(tmp_path, _multi_layer_result(), suffix=suffix)
     target = tmp_path / f"scored{suffix}"
 
-    result = score_result(annotated, target, selection=ALL_ABUNDANCE_LAYERS)
+    result = _analyze_result(
+        tmp_path,
+        _multi_layer_result(),
+        selection=ALL_ABUNDANCE_LAYERS,
+    )
+    write_parsed_levels(result.parsed, target)
 
     restored = read_parsed_levels(target)
     assert list(result.layers) == ["Intensity", "LFQ/Intensity"]
@@ -324,12 +349,10 @@ def test_named_selection_rejects_layers_without_abundance_role(
     name: str,
     tmp_path: Path,
 ) -> None:
-    annotated = _write_annotated_result(tmp_path, _multi_layer_result())
-
     with pytest.raises(ValueError, match=r"layer|abundance"):
-        score_result(
-            annotated,
-            tmp_path / "scored.parquet",
+        _analyze_result(
+            tmp_path,
+            _multi_layer_result(),
             selection=NamedAbundanceLayer(name),
         )
 
@@ -337,10 +360,10 @@ def test_named_selection_rejects_layers_without_abundance_role(
 def test_all_abundance_layers_fall_back_to_primary_without_roles(tmp_path: Path) -> None:
     parsed = _multi_layer_result()
     parsed.levels["ion"].uns.pop("layer_roles")
-    annotated = _write_annotated_result(tmp_path, parsed)
     target = tmp_path / "scored.parquet"
 
-    result = score_result(annotated, target, selection=ALL_ABUNDANCE_LAYERS)
+    result = _analyze_result(tmp_path, parsed, selection=ALL_ABUNDANCE_LAYERS)
+    write_parsed_levels(result.parsed, target)
 
     assert list(result.layers) == ["Intensity"]
     assert result.selection.fallback == "primary_missing_abundance_roles"
@@ -366,12 +389,11 @@ def test_all_abundance_layers_reject_corrupt_role_metadata(
 ) -> None:
     parsed = _multi_layer_result()
     parsed.levels["ion"].uns["layer_roles"] = {"abundance": abundance}
-    annotated = _write_annotated_result(tmp_path, parsed)
 
     with pytest.raises(ValueError, match=message):
-        score_result(
-            annotated,
-            tmp_path / "scored.parquet",
+        _analyze_result(
+            tmp_path,
+            parsed,
             selection=ALL_ABUNDANCE_LAYERS,
         )
 
@@ -454,42 +476,50 @@ def test_protocol_implementations_are_substitutable() -> None:
     assert result.scoring_method["name"] == "test-scoring"
 
 
-def test_multi_layer_failure_writes_no_partial_target(tmp_path: Path) -> None:
-    annotated = _write_annotated_result(tmp_path, _multi_layer_result())
+def test_analyzer_binds_supplied_calculation_methods(tmp_path: Path) -> None:
+    module = tmp_path / "module.toml"
+    write_module(module)
+    configuration = module_settings()
+    expected = analyze_level(
+        quantitative_input(),
+        configuration,
+        MixedSpeciesDiagnostics(),
+        ProteoBenchCompatibleScoring(),
+    )
+    diagnostics = _ObservedDiagnostics(expected.diagnostics)
+    scoring = _ObservedScoring(expected.scores)
+    analyzer = ProteoBenchAnalyzer(
+        load_module(module),
+        diagnostic_method=diagnostics,
+        scoring_method=scoring,
+    )
+
+    result = analyzer.analyze(parsed_result())
+
+    assert diagnostics.called and scoring.called
+    assert result.layers["Intensity"].analysis.diagnostic_method["name"] == "test-diagnostics"
+    assert result.layers["Intensity"].analysis.scoring_method["name"] == "test-scoring"
+
+
+def test_multi_layer_failure_mutates_no_input_or_target(tmp_path: Path) -> None:
+    parsed = _multi_layer_result()
     target = tmp_path / "scored.parquet"
+    module = tmp_path / "module.toml"
+    write_module(module)
     diagnostics = MixedSpeciesDiagnostics().diagnose(quantitative_input(), module_settings())
+    analyzer = ProteoBenchAnalyzer(
+        load_module(module),
+        selection=ALL_ABUNDANCE_LAYERS,
+        diagnostic_method=_FailsAfterFirstDiagnostics(diagnostics),
+    )
 
     with pytest.raises(RuntimeError, match="second layer failed"):
-        score_result(
-            annotated,
-            target,
-            selection=ALL_ABUNDANCE_LAYERS,
-            diagnostic_method=_FailsAfterFirstDiagnostics(diagnostics),
-        )
+        analyzer.analyze(parsed)
 
     assert not target.exists()
-    restored = read_parsed_levels(annotated)
-    assert "scoring" not in _object(restored.levels["ion"].metadata["proteobench"])
-    assert not any(name.startswith("proteobench:") for name in restored.levels["ion"].varm)
-
-
-@pytest.mark.parametrize("owner", ["root", "level"])
-def test_score_metadata_alone_prevents_overwrite(tmp_path: Path, owner: str) -> None:
-    annotated = _write_annotated_result(tmp_path, parsed_result())
-    parsed = read_parsed_levels(annotated)
-    root = _object(_object(parsed.metadata["proteobench"])["provenance"])
-    local = _object(parsed.levels["ion"].metadata["proteobench"])
-    section = root if owner == "root" else local
-    section["scoring"] = {}
-    source = tmp_path / "existing-scores.parquet"
-    target = tmp_path / "refused.parquet"
-    write_parsed_levels(parsed, source)
-    before = deepcopy((parsed.metadata, parsed.levels["ion"].metadata))
-    with pytest.raises(ValueError, match="refusing to overwrite"):
-        score_result(source, target)
-    assert not target.exists()
-    reread = read_parsed_levels(source)
-    assert (reread.metadata, reread.levels["ion"].metadata) == before
+    assert "proteobench" not in parsed.metadata
+    assert "proteobench" not in parsed.levels["ion"].metadata
+    assert not any(name.startswith("proteobench:") for name in parsed.levels["ion"].varm)
 
 
 def test_cli_benchmark_exports_and_reports_verbose_summary(tmp_path: Path) -> None:

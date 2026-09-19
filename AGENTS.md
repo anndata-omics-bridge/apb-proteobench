@@ -17,9 +17,12 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 
 ## Architecture
 
-- `cli.py` composes the result workflows and presentation; presentation never reopens a result.
-- `api.py` owns physical result orchestration. `integration.py` is the only module translating
-  `ParsedLevels` into calculation inputs or attaching calculated outputs.
+- `api.py` exposes in-memory ProteoBench analysis over canonical `ParsedLevels`; it owns no paths,
+  APB2 compilation, FASTA loading, persistence, logging, or CLI behavior.
+- `cli.py` composes APB2 conversion, FASTA verification, ProteoBench analysis, persistence, and
+  presentation; presentation never reopens a result.
+- `integration.py` is the only module translating `ParsedLevels` into calculation inputs or
+  attaching calculated outputs.
 - `workflow.py` owns the client-side diagnostic and scoring protocols and composes concrete
   calculations explicitly.
 - `calculation/` contains no AnnData, MuData, result I/O, logging, or CLI behavior.
@@ -27,6 +30,9 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 - `io/` owns physical compatibility exports and imports no workflow, calculation, integration, API,
   presentation, or CLI module; the CLI passes it completed tables.
 - APB2 is an inward dependency through its public facades; APB2 must never import this package.
+- Import `ParsedLevels` from `apb2.api` in the public API. Only the CLI may import APB2 compilation,
+  quantification-level, and result-I/O operations; only integration may import lower-level result
+  types and projection helpers.
 - The only permitted APB dependencies are `apb2` and `apb-fasta`. Never import `apb_aggregate` or
   any other sibling APB tool; reach aggregation through the `apb-aggregate` CLI as a separate step.
 - Keep HYE and HY configuration-driven. Do not add benchmark-name branches or preset catalogues.

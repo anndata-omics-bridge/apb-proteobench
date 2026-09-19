@@ -7,7 +7,7 @@ Dependency direction follows ownership:
 ```text
 CLI / presentation
         ↓
-API and APB integration
+in-memory API and APB integration
         ↓
 calculation protocols and workflow
         ↓
@@ -23,16 +23,14 @@ APB2 owns storage-neutral `ParsedLevels`, result adapters, and generic relationa
 annotation. This package owns module semantics, complete ProteoBench coverage, species mapping,
 diagnostics, scoring, compatibility assets, and presentation.
 
-The file-to-file API owns physical orchestration. Raw-vendor workflows construct APB2's `ParseRuleCompiler`: canonical parser output goes directly to APB FASTA, while `compiler.parameters` supplies ProteoBot fields without provenance reconstruction. The integration boundary is the only layer that
-extracts scientific input from `ParsedLevels` or attaches calculation output. The CLI composes that
-API and presents results; it does not reopen output files.
+The public API owns one operation: annotate and score canonical `ParsedLevels` in memory. It contains no paths, APB2 compiler, FASTA loading, persistence, logging, or command behavior. The CLI is the physical composition root: raw-vendor workflows construct APB2's `ParseRuleCompiler`, pass canonical parser output to APB FASTA and `ProteoBenchAnalyzer`, persist the returned `ParsedLevels` through APB2, and use `compiler.parameters` for ProteoBot fields without provenance reconstruction. The integration boundary alone extracts scientific input from `ParsedLevels` or attaches calculation output; presentation receives the completed analysis and explicit command paths and never reopens output files.
 
 ## Scientific input
 
 Scientific methods receive `QuantitativeLevelInput`: a pandas observation table, NumPy/SciPy
 matrix, feature identifiers, protein assignments, and level name. They never receive AnnData,
-MuData, or `ParsedLevels`. The integration boundary extracts those values and later persists the
-typed result.
+MuData, or `ParsedLevels`. The integration boundary extracts those values and attaches the completed
+analysis to a new `ParsedLevels`; APB2 persists it when the caller requests storage.
 
 ## Replaceable methods
 

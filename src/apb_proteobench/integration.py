@@ -12,11 +12,11 @@ from urllib.parse import quote
 import numpy as np
 import pandas as pd
 import polars as pl
+from apb2.api import ParsedLevels
 from apb2.result_facade import (
     JsonValue,
     ParsedLevel,
     ParsedLevelName,
-    ParsedLevels,
     quantitative_layer_values,
 )
 

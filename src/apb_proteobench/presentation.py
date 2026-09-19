@@ -3,13 +3,21 @@
 from __future__ import annotations
 
 from collections import Counter
+from pathlib import Path
 
 from loguru import logger
 
-from apb_proteobench.api import ScoredResult
+from apb_proteobench.api import ProteoBenchAnalysisResult
 
 
-def report_score(result: ScoredResult, /, *, verbose: bool) -> None:
+def report_score(
+    result: ProteoBenchAnalysisResult,
+    source: Path,
+    target: Path,
+    /,
+    *,
+    verbose: bool,
+) -> None:
     """Log each scored layer as a concise completion or detailed summary."""
     if not verbose:
         for layer in result.layers.values():
@@ -20,13 +28,13 @@ def report_score(result: ScoredResult, /, *, verbose: bool) -> None:
                 layer.layer_name,
                 repr(layer.diagnostics_slot),
                 repr(layer.layer_name),
-                result.output_path,
+                target,
             )
         return
     configuration = result.configuration
     conditions = Counter(sample.condition for sample in configuration.samples)
     logger.info("ProteoBench score summary")
-    logger.info("input={} output={}", result.input_path, result.output_path)
+    logger.info("input={} output={}", source, target)
     logger.info(
         "selection={} layers={} fallback={}",
         result.selection.mode,

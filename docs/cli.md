@@ -7,7 +7,7 @@
 | `apb-proteobench run` | vendor table, parameters, FASTA, and module TOML | scored APB2 result and optional pMultiQC/ProteoBot pair |
 | `apb-proteobench benchmark` | existing APB2 result and module TOML | scored APB2 result and optional pMultiQC/ProteoBot pair |
 
-Conversion, annotation, and scoring remain available as Python APIs, but are not separate CLI commands. Use `apb2 convert`, `apb-fasta verify-peptides`, and `apb-aggregate` when a staged shell workflow is needed.
+In-memory annotation and scoring remain available through `ProteoBenchAnalyzer`, but are not separate CLI commands. APB2 owns conversion and persistence. Use `apb2 convert`, `apb-fasta verify-peptides`, and `apb-aggregate` when a staged shell workflow is needed.
 
 Use `apb-proteobench --help` or a command's `--help` for the installed version's generated Cyclopts reference. Direct conversion supports the software, versions, inputs, parameter parsers, and levels listed in the [APB2 support matrix](https://anndata-omics-bridge.github.io/apb2/supported_software/).
 

@@ -18,7 +18,7 @@ from apb2.annotation_extension import (
     match_annotation,
     record_annotation_provenance,
 )
-from apb2.result_facade import ParsedLevels
+from apb2.api import ParsedLevels
 
 from apb_proteobench.configuration.load import LoadedModule, load_module
 

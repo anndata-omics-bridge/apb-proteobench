@@ -7,11 +7,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import polars as pl
+from apb2.api import ParsedLevels
 from apb2.result_facade import (
     FinalLayerTable,
     ObsFinal,
     ParsedLevel,
-    ParsedLevels,
     VarFinal,
 )
 from numpy.typing import NDArray

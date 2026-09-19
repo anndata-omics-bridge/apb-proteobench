@@ -41,7 +41,7 @@ Read any supported result through APB2's storage-neutral facade:
 ```python
 from pathlib import Path
 
-from apb2.result_facade import read_parsed_levels
+from apb2.api import read_parsed_levels
 
 parsed = read_parsed_levels(Path("results/scored.h5mu"))
 level = parsed.levels["ion"]

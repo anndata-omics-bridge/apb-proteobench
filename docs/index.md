@@ -24,7 +24,7 @@ staged:  vendor table -> APB2 result -> FASTA check -> [aggregation] -> scored r
 Neither route aggregates. APB ProteoBench declares only APB2 and APB FASTA; the optional
 aggregation step is reached through the separate `apb-aggregate` CLI, never as a library import.
 
-Use the direct route for one final artifact. Use the staged route when intermediates need to be inspected, cached, or reused, or when the scored level must be derived from a lower one. Existing APB2 results can enter at either FASTA checking or ProteoBench benchmarking. The command line stays at these two complete workflows; lower-level conversion, annotation, and scoring remain Python APIs.
+Use the direct route for one final artifact. Use the staged route when intermediates need to be inspected, cached, or reused, or when the scored level must be derived from a lower one. Existing APB2 results can enter at either FASTA checking or ProteoBench benchmarking. The command line stays at these two complete workflows; the Python API provides in-memory annotation and scoring, while APB2 owns conversion and persistence.
 
 ## Command-line interface
 
@@ -56,27 +56,23 @@ For the existing pMultiQC ProteoBench module, add `--x --result-performance repo
 
 ## Python API
 
-File-to-file functions mirror the complete CLI operations and return typed results for inspection:
+The Python API analyzes canonical APB2 results in memory; callers compose conversion and persistence through APB2:
 
 ```python
 from pathlib import Path
 
-from apb_proteobench.api import run_vendor_benchmark
+from apb2.api import read_parsed_levels, write_parsed_levels
+from apb_proteobench.api import ProteoBenchAnalyzer
+from apb_proteobench.configuration.load import load_module
 
-result = run_vendor_benchmark(
-    Path("report.tsv"),
-    Path("search-parameters.txt"),
-    (Path("proteins.fasta"),),
-    Path("module_settings.toml"),
-    Path("results/scored.h5mu"),
-    software="spectronaut",
-)
-print(result.software, list(result.parsed.levels))
-print(result.scored.layers["Intensity"].analysis.scores.nr_feature)
+parsed = read_parsed_levels(Path("results/fasta-checked.h5mu"))
+analyzer = ProteoBenchAnalyzer(load_module(Path("module_settings.toml")))
+result = analyzer.analyze(parsed)
+write_parsed_levels(result.parsed, Path("results/scored.h5mu"))
+print(result.layers["Intensity"].analysis.scores.nr_feature)
 ```
 
-The API also exposes the annotation parser, storage-neutral calculation workflow, and replaceable
-diagnostic and scoring protocols. See the [complete Python API](api.md).
+The analyzer owns annotation, layer selection, diagnostics, scoring, and attachment of results. It owns no paths, vendor conversion, FASTA loading, or persistence. See the [complete Python API](api.md).
 
 ## Inputs and outputs
 

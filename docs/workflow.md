@@ -84,32 +84,39 @@ The export requires `--x` for primary/X-only scoring or one `--layer NAME`; it r
 
 ## Python workflow
 
-The direct Python API follows the same composition:
+The direct Python API keeps package ownership explicit:
 
 ```python
 from pathlib import Path
 
-from apb_proteobench.api import run_vendor_benchmark
+from apb2.api import ParseRuleCompiler, write_parsed_levels
+from apb_fasta.api import FastaAnnotator
+from apb_proteobench.api import ProteoBenchAnalyzer
+from apb_proteobench.configuration.load import load_module
 from apb_proteobench.integration import ALL_ABUNDANCE_LAYERS
+from protein_fasta.frame import ProteinDatabase, refseq, uniprotkb
 
-result = run_vendor_benchmark(
+compiler = ParseRuleCompiler(
     Path("report.tsv"),
     Path("search-parameters.txt"),
-    (Path("proteins.fasta"),),
-    Path("module_settings.toml"),
-    Path("results/scored.h5mu"),
     software="spectronaut",
-    selection=ALL_ABUNDANCE_LAYERS,
 )
+parsed = compiler.compile().parse()
+proteins = ProteinDatabase(uniprotkb, refseq).parse((Path("proteins.fasta"),))
+verified = FastaAnnotator(proteins).verify_peptides(parsed)
+result = ProteoBenchAnalyzer(
+    load_module(Path("module_settings.toml")),
+    selection=ALL_ABUNDANCE_LAYERS,
+).analyze(verified.parsed)
+write_parsed_levels(result.parsed, Path("results/scored.h5mu"))
 
 print(list(result.parsed.levels))
-print(result.fasta_reports.peptide_levels)
-for layer_name, layer in result.scored.layers.items():
+print(verified.reports.peptide_levels)
+for layer_name, layer in result.layers.items():
     print(layer_name, layer.analysis.scores.nr_feature)
 ```
 
-For separate file-to-file stages, in-memory parsers, packaged module selection, custom calculation
-methods, and typed return values, continue to the [Python API reference](api.md).
+For packaged module selection, custom calculation methods, and typed return values, continue to the [Python API reference](api.md).
 
 ## Output safety
 
