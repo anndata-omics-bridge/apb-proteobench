@@ -11,7 +11,7 @@ containers =
     apb_proteobench
 layers =
     cli
-    presentation
+    presentation | io
     api
     integration
     annotation | workflow
@@ -26,3 +26,19 @@ source_modules =
 forbidden_modules =
     anndata
     mudata
+
+[importlinter:contract:result-performance-io-is-independent]
+name = result-performance IO does not import APB internals
+type = forbidden
+source_modules =
+    apb_proteobench.io
+forbidden_modules =
+    apb_proteobench.annotation
+    apb_proteobench.api
+    apb_proteobench.calculation
+    apb_proteobench.cli
+    apb_proteobench.configuration
+    apb_proteobench.data
+    apb_proteobench.integration
+    apb_proteobench.presentation
+    apb_proteobench.workflow

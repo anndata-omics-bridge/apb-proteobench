@@ -20,11 +20,14 @@ apb-proteobench run report.tsv proteins.fasta \
     --params search-parameters.txt \
     --module module_settings.toml \
     --software spectronaut \
-    --output results/scored.h5mu \
+    --level ion \
+    --x \
+    --output results/scored.h5ad \
+    --result-performance reports/result_performance.csv \
     --verbose
 ```
 
-The direct command compiles every compatible APB2 level, verifies modification-stripped peptides against the FASTA database, applies the sample design, calculates diagnostics and scores, and writes only the final `.h5mu`. Intermediate APB2 values stay in memory. It scores the level named by `module_settings.toml` as the vendor table reports it; it derives no new level. Use the staged route when aggregation is required.
+The direct command compiles the requested APB2 quantification level, verifies modification-stripped peptides against the FASTA database, applies the sample design, calculates diagnostics and scores, and writes the final APB2 result plus the optional pMultiQC/ProteoBot export pair. Omit `--level` to compile every compatible level. Intermediate APB2 values stay in memory as storage-neutral `ParsedLevels`; `write_parsed_levels` selects H5AD, H5MU, Parquet, or DuckDB from the target suffix. It scores the level named by `module_settings.toml` as the vendor table reports it; it derives no new level. Use the staged route when aggregation is required.
 
 ## Staged workflow
 
@@ -65,19 +68,19 @@ apb-proteobench benchmark \
 The staged workflow accepts `.h5ad`, `.h5mu`, `.parquet`, and `.duckdb` paths. APB2 selects the
 result reader and writer from the suffix.
 
-## Fine-grained ProteoBench stages
+## Export for pMultiQC
 
-Annotation and scoring remain separately callable:
+Both `run` and `benchmark` can write the current ion-level ProteoBench intermediate under the exact filename consumed by the existing pMultiQC ProteoBench module. The same option also writes the sibling `<intermediate_hash>.json` datapoint used by the ProteoBot result repository:
 
 ```bash
-apb-proteobench annotate \
-    existing-result.h5mu module_settings.toml results/annotated.h5mu
-apb-proteobench score \
-    results/annotated.h5mu results/scored.h5mu --verbose
+apb-proteobench benchmark \
+    results/fasta-checked.h5mu module_settings.toml results/scored.h5mu \
+    --x \
+    --result-performance reports/result_performance.csv
+multiqc --proteobench-plugin reports -o reports/multiqc
 ```
 
-Annotation requires exact, one-to-one sample coverage and embeds the normalized module
-configuration and source checksum. `score` reads that embedded configuration.
+The export requires `--x` for primary/X-only scoring or one `--layer NAME`; it rejects the default all-layer selection, non-ion levels, wrong CSV filenames, and either existing output. Both files are staged before publication from the completed in-memory diagnostics, scores, and search-parameter metadata; each final path is created atomically, and a failed publication rolls back files added by the same call. The CLI does not reopen or recalculate the APB2 result. The CSV uses `index=False`, while the JSON uses ProteoBot's hash filename and top-level datapoint fields. pMultiQC and MultiQC require no changes.
 
 ## Python workflow
 
@@ -87,6 +90,7 @@ The direct Python API follows the same composition:
 from pathlib import Path
 
 from apb_proteobench.api import run_vendor_benchmark
+from apb_proteobench.integration import ALL_ABUNDANCE_LAYERS
 
 result = run_vendor_benchmark(
     Path("report.tsv"),
@@ -95,11 +99,13 @@ result = run_vendor_benchmark(
     Path("module_settings.toml"),
     Path("results/scored.h5mu"),
     software="spectronaut",
+    selection=ALL_ABUNDANCE_LAYERS,
 )
 
 print(list(result.parsed.levels))
 print(result.fasta_reports.peptide_levels)
-print(result.scored.analysis.scores.nr_feature)
+for layer_name, layer in result.scored.layers.items():
+    print(layer_name, layer.analysis.scores.nr_feature)
 ```
 
 For separate file-to-file stages, in-memory parsers, packaged module selection, custom calculation
@@ -108,5 +114,4 @@ methods, and typed return values, continue to the [Python API reference](api.md)
 ## Output safety
 
 All result-to-result operations require a target different from the source and refuse an existing
-target. The direct vendor workflow requires an exact `.h5mu` target and also refuses to overwrite
-its input. Choose a new path for each persisted stage.
+target. The direct vendor workflow requires an exact `.h5mu`, `.parquet`, or `.duckdb` target and also refuses to overwrite its input. Choose a new path for each persisted stage.

@@ -24,12 +24,19 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
   calculations explicitly.
 - `calculation/` contains no AnnData, MuData, result I/O, logging, or CLI behavior.
 - `configuration/` is the inward Pydantic/TOML boundary and imports no outer package module.
+- `io/` owns physical compatibility exports and imports no workflow, calculation, integration, API,
+  presentation, or CLI module; the CLI passes it completed tables.
 - APB2 is an inward dependency through its public facades; APB2 must never import this package.
 - The only permitted APB dependencies are `apb2` and `apb-fasta`. Never import `apb_aggregate` or
   any other sibling APB tool; reach aggregation through the `apb-aggregate` CLI as a separate step.
 - Keep HYE and HY configuration-driven. Do not add benchmark-name branches or preset catalogues.
-- Preserve `varm["proteobench"]` for feature diagnostics and the logical
-  `uns["apb"]["proteobench"]` section for scores/provenance.
+- Preserve the tool-owned layout: root `proteobench.provenance.annotation` and `.scoring` hold common configuration; level `proteobench.annotation` holds matching evidence and `.scoring[quantity_name]` holds each layer's roles, mappings, scores and `varm` reference. Scoring provenance is schema 3. No `layers` wrapper, `X` score alias or duplicated selection list; keep reversible layer-name escaping. See [result layout](docs/results.md).
+
+## Compatibility policy
+
+- Pre-1.0 breaking API, CLI, and persisted-schema changes are explicitly allowed when they produce a cleaner public design.
+- Do not add compatibility aliases, migration facades, or duplicate persistence layouts unless the user explicitly requests them.
+- Record breaking changes in `CHANGES.md`, update callers and documentation in the same change, and fail explicitly on unsupported legacy result layouts.
 
 ## Code conventions
 

@@ -36,8 +36,9 @@ condition = "A"
 - `level` selects the single APB2 quantification level to annotate and score.
 - `default_cutoff_min_feature` selects the aggregate projection shown at the top of the score.
 - `max_nr_observed` controls the complete cutoff-indexed score range.
-- Each `samples` record supplies a matching `raw_file`, optional alias, displayed `sample_name`,
-  and condition. Conditions A and B are required.
+- Each `samples` record supplies a canonical `raw_file`, optional `raw_file_alias`, displayed
+  `sample_name`, and condition. An observation may use any of the three identifiers; successful
+  matching always records the module's canonical metadata. Conditions A and B are required.
 
 Unknown upstream sections are accepted because the document is shared with ProteoBench. Only the
 validated sample design and scoring fields are embedded in APB metadata.
@@ -100,7 +101,7 @@ and support status are recorded in
 
 The embedded sample design is normalized as a column mapping (`raw_file`, `sample_name`, and
 `condition` arrays), rather than TOML's list of tables, so the same JSON-compatible value
-round-trips through AnnData's HDF5 representation. Authored aliases remain traceable to the
-checksum-identified source module but are unnecessary after matching.
+round-trips through AnnData's HDF5 representation. Authored aliases participate in annotation and
+remain traceable to the checksum-identified source module.
 
 Continue to [Result layout](results.md) for the physical and storage-neutral metadata locations.

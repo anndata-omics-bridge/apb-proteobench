@@ -8,27 +8,30 @@ The Python API provides two levels of composition:
 
 ## Run the complete vendor workflow
 
-`run_vendor_benchmark()` is the one-call API from raw vendor files to final scored MuData:
+`run_vendor_benchmark()` is the one-call API from raw vendor files to one final scored APB2 result:
 
 ```python
 from pathlib import Path
 
 from apb_proteobench.api import run_vendor_benchmark
+from apb_proteobench.integration import ALL_ABUNDANCE_LAYERS
 
 result = run_vendor_benchmark(
     Path("report.tsv"),
     Path("search-parameters.txt"),
     (Path("human.fasta"), Path("contaminants.fasta")),
     Path("module_settings.toml"),
-    Path("results/scored.h5mu"),
+    Path("results/scored.parquet"),
     software="spectronaut",
+    selection=ALL_ABUNDANCE_LAYERS,
 )
 
 print(result.fasta_reports.peptide_levels)
-print(result.scored.analysis.scores.nr_feature)
+for layer_name, layer in result.scored.layers.items():
+    print(layer_name, layer.analysis.scores.nr_feature)
 ```
 
-It compiles and runs every compatible APB2 parser, verifies modification-stripped peptide sequences against the FASTA database, applies the ProteoBench design, scores the configured level, and persists once at the end. The target must be an exact `.h5mu` path.
+It constructs APB2's `ParseRuleCompiler`, compiles and parses canonical `ParsedLevels`, passes those levels directly to APB FASTA, applies the ProteoBench design, scores the configured level, and persists once at the end through APB2's `write_parsed_levels`. `ParseRuleCompiler.parameters` supplies ProteoBot parameter fields; parameters are never reconstructed from parsed provenance. Pass `level="ion"` to parse only that quantification level and enable a `.h5ad` target; all-level targets may be `.h5mu`, `.parquet`, or `.duckdb`.
 
 It performs no quantitative aggregation, and APB ProteoBench imports no aggregation package. The scored level must already exist in the vendor result.
 
@@ -49,21 +52,38 @@ Reaching aggregation only as a subprocess is deliberate: it keeps APB ProteoBenc
 from pathlib import Path
 
 from apb_proteobench.api import benchmark_result
+from apb_proteobench.integration import NamedAbundanceLayer
 
 scored = benchmark_result(
     Path("results/fasta-checked.h5mu"),
     Path("module_settings.toml"),
     Path("results/scored.h5mu"),
+    selection=NamedAbundanceLayer("LFQ_Intensity"),
 )
-print(scored.analysis.scores.nr_feature)
+print(scored.layers["LFQ_Intensity"].analysis.scores.nr_feature)
 ```
+
+The pMultiQC compatibility writer is deliberately a separate, storage-neutral boundary. Pass it the completed ion-level diagnostics table; it validates the canonical filename and columns, refuses overwrites, and writes atomically without a DataFrame index:
+
+```python
+from pathlib import Path
+
+from apb_proteobench.io.result_performance import write_result_performance
+
+layer = scored.layers["LFQ_Intensity"]
+write_result_performance(
+    layer.analysis.diagnostics.legacy,
+    Path("reports/result_performance.csv"),
+)
+```
+
+The writer performs no APB2 reads or calculations. Callers must select exactly one ion-level `ScoredLayerResult`; the CLI enforces that constraint for `run` and `benchmark`.
 
 ## Convert vendor results
 
 ### File-to-file facade
 
-`convert_vendor_result()` parses a vendor table through APB2's packaged rules, writes h5ad or h5mu,
-and returns the same parsed result in memory:
+`convert_vendor_result()` parses a vendor table through APB2's packaged rules, writes through APB2's suffix-selected persistence boundary, and returns the same parsed result in memory:
 
 ```python
 from pathlib import Path
@@ -73,7 +93,7 @@ from apb_proteobench.api import convert_vendor_result
 conversion = convert_vendor_result(
     Path("report.tsv"),
     Path("search-parameters.txt"),
-    Path("results/all-levels.h5mu"),
+    Path("results/all-levels.parquet"),
     software="spectronaut",
 )
 
@@ -82,8 +102,7 @@ print(conversion.software_version)
 print(list(conversion.parsed.levels))
 ```
 
-Omitting `level` converts every compatible level and requires an `.h5mu` target. Select one level
-and an `.h5ad` target explicitly:
+Omitting `level` converts every compatible level and accepts `.h5mu`, `.parquet`, or `.duckdb`. Select one level explicitly; `.h5ad` is then also valid:
 
 ```python
 conversion = convert_vendor_result(
@@ -185,20 +204,23 @@ and entrapment are packaged for planned support but deliberately rejected by
 from pathlib import Path
 
 from apb_proteobench.api import score_result
+from apb_proteobench.integration import ALL_ABUNDANCE_LAYERS
 
 scored = score_result(
     Path("results/annotated.h5mu"),
     Path("results/scored.h5mu"),
+    selection=ALL_ABUNDANCE_LAYERS,
 )
 
-print(scored.extracted.name)
-print(scored.analysis.scores.nr_feature)
-print(scored.analysis.scores.median_abs_epsilon_global)
+for layer_name, layer in scored.layers.items():
+    print(layer_name)
+    print(layer.analysis.scores.nr_feature)
+    print(layer.analysis.scores.median_abs_epsilon_global)
 ```
 
-The returned `ScoredResult` retains the validated configuration, extracted typed calculation input,
-complete diagnostics, aggregate scores, selected methods, and input/output paths. See
-[Result layout](results.md) for persisted locations.
+The default `ALL_ABUNDANCE_LAYERS` selection preserves the declared abundance-layer order and falls back to primary/X when older input has no abundance metadata, recording that fallback in the result. Pass `PRIMARY_LAYER` to score only `ParsedLevel.primary_layer_name`, which is projected to AnnData `X`; it does not require an `abundance` role. `NamedAbundanceLayer(name)` requires the named layer to exist and carry that role.
+
+The returned `ScoredResult.layers` is an ordered layer-keyed dictionary. Each `ScoredLayerResult` retains resolved roles, diagnostics location, complete diagnostics, and aggregate scores, but not the large calculation matrix. See [Result layout](results.md) for persisted locations.
 
 ### Storage-neutral workflow
 
@@ -208,7 +230,15 @@ Use the lower-level workflow to inspect or transform values before writing:
 from pathlib import Path
 
 from apb2.result_facade import read_parsed_levels, write_parsed_levels
-from apb_proteobench.integration import embedded_configuration, extract_level, persist_result
+from apb_proteobench.integration import (
+    ALL_ABUNDANCE_LAYERS,
+    ScoredLayerResult,
+    diagnostics_slot,
+    embedded_configuration,
+    extract_layer,
+    persist_results,
+    resolve_layer_selection,
+)
 from apb_proteobench.workflow import (
     MixedSpeciesDiagnostics,
     ProteoBenchCompatibleScoring,
@@ -217,21 +247,30 @@ from apb_proteobench.workflow import (
 
 parsed = read_parsed_levels(Path("results/annotated.h5mu"))
 configuration = embedded_configuration(parsed)
-extracted = extract_level(parsed, configuration)
+selection = resolve_layer_selection(parsed, configuration, ALL_ABUNDANCE_LAYERS)
+layers = {}
+for layer_name in selection.layer_names:
+    extracted = extract_layer(parsed, configuration, layer_name)
+    analysis = analyze_level(
+        extracted.calculation,
+        configuration,
+        MixedSpeciesDiagnostics(),
+        ProteoBenchCompatibleScoring(),
+    )
+    layers[layer_name] = ScoredLayerResult(
+        level_name=extracted.level_name,
+        layer_name=layer_name,
+        diagnostics_slot=diagnostics_slot(layer_name),
+        roles=extracted.roles,
+        analysis=analysis,
+    )
 
-analysis = analyze_level(
-    extracted.calculation,
-    configuration,
-    MixedSpeciesDiagnostics(),
-    ProteoBenchCompatibleScoring(),
-)
-
-scored = persist_result(parsed, extracted, analysis)
+scored = persist_results(parsed, selection, layers)
 write_parsed_levels(scored, Path("results/scored.duckdb"))
 ```
 
 The calculation consumes `QuantitativeLevelInput`, not AnnData, MuData, or `ParsedLevels`.
-`persist_result()` attaches the calculation output to a copy of the APB2 result.
+`extract_layer()` materializes one selected layer at a time, and `persist_results()` attaches all completed layer outputs to a copy of the APB2 result.
 
 ## Substitute diagnostic and scoring methods
 

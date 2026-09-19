@@ -2,33 +2,19 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, cast
 
 from apb2.annotation_extension import AnnotationResult
-from apb2.parserV2.compile import AnnDataOutput, ParseRuleCompiler, compile_mudata_parsers
-from apb2.parserV2.detect_document import (
-    DetectedRuleDocument,
-    detect_rule_document,
-    guess_software,
-    search_parameter_evidence,
-    software_slug,
-)
-from apb2.parserV2.parse_quant.data.parsed import (
-    JsonValue,
-    ParsedLevel,
-    ParsedLevelName,
+from apb2.api import (
     ParsedLevels,
+    ParseRuleCompiler,
+    QuantificationLevel,
+    read_parsed_levels,
+    write_parsed_levels,
 )
-from apb2.parserV2.parse_quant.parameters.source import SingleFile
-from apb2.parserV2.parse_rule_facade import PRODUCER, ParseRuleFacade
-from apb2.parserV2.vendor_params.parsers.shared.model import Parameters
-from apb2.parserV2.vendor_params.registry import parse_params
-from apb2.parserV2.vendor_parse_rules.document import SearchParameterEvidence
-from apb2.parserV2.vendor_parse_rules.schema.base import QuantificationLevel
-from apb2.result_facade import read_parsed_levels, write_parsed_levels
+from apb2.result_facade import JsonValue
 from apb_fasta.annotation import FastaAnnotationParser
 from apb_fasta.calculation.results import FastaAnnotationReports
 from apb_fasta.configuration import (
@@ -40,24 +26,27 @@ from protein_fasta.frame import ProteinDatabase, refseq, uniprotkb
 from apb_proteobench.annotation import ProteoBenchAnnotationParser
 from apb_proteobench.configuration.schema import ModuleSettings
 from apb_proteobench.integration import (
-    ExtractedProteoBenchLevel,
+    ALL_ABUNDANCE_LAYERS,
+    LayerSelection,
+    ResolvedLayerSelection,
+    ScoredLayerResult,
+    diagnostics_slot,
     embedded_configuration,
-    extract_level,
-    persist_result,
+    extract_layer,
+    persist_results,
+    resolve_layer_selection,
 )
 from apb_proteobench.workflow import (
     DiagnosticMethod,
     MixedSpeciesDiagnostics,
     ProteoBenchCompatibleScoring,
-    ProteoBenchResult,
     ScoringMethod,
     analyze_level,
 )
 
 _DEFAULT_DIAGNOSTICS = MixedSpeciesDiagnostics()
 _DEFAULT_SCORING = ProteoBenchCompatibleScoring()
-
-type AnnDataChecks = Literal["standard", "strict"]
+type ValidationChecks = Literal["standard", "strict"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,8 +68,9 @@ class ScoredResult:
     input_path: Path
     output_path: Path
     configuration: ModuleSettings
-    extracted: ExtractedProteoBenchLevel
-    analysis: ProteoBenchResult
+    selection: ResolvedLayerSelection
+    layers: dict[str, ScoredLayerResult]
+    search_parameters: dict[str, JsonValue]
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,11 +88,18 @@ class VendorBenchmarkResult:
 class _AnalyzedResult:
     parsed: ParsedLevels
     configuration: ModuleSettings
-    extracted: ExtractedProteoBenchLevel
-    analysis: ProteoBenchResult
+    selection: ResolvedLayerSelection
+    layers: dict[str, ScoredLayerResult]
 
 
-def _persist_scored(analyzed: _AnalyzedResult, source: Path, target: Path, /) -> ScoredResult:
+def _persist_scored(
+    analyzed: _AnalyzedResult,
+    source: Path,
+    target: Path,
+    /,
+    *,
+    search_parameters: dict[str, JsonValue],
+) -> ScoredResult:
     """Write the analyzed result and wrap it as the public scoring evidence."""
     target.parent.mkdir(parents=True, exist_ok=True)
     write_parsed_levels(analyzed.parsed, target)
@@ -110,8 +107,9 @@ def _persist_scored(analyzed: _AnalyzedResult, source: Path, target: Path, /) ->
         input_path=source,
         output_path=target,
         configuration=analyzed.configuration,
-        extracted=analyzed.extracted,
-        analysis=analyzed.analysis,
+        selection=analyzed.selection,
+        layers=analyzed.layers,
+        search_parameters=search_parameters,
     )
 
 
@@ -124,15 +122,14 @@ def convert_vendor_result(
     level: QuantificationLevel | None = None,
     software: str | None = None,
     parameters_software: str | None = None,
-    checks: AnnDataChecks = "standard",
+    checks: ValidationChecks = "standard",
 ) -> ConvertedVendorResult:
-    """Parse a vendor table with APB2's compiler and persist h5ad or h5mu.
+    """Parse a vendor table with APB2's compiler and persist one APB2 result.
 
     Args:
-        data: Vendor result table.
+        data: Vendor result table or canonical multi-file result directory.
         parameters_path: Vendor search-parameter file.
-        target: Exact output path, ending in ``.h5ad`` for one level or ``.h5mu`` for all
-            compatible levels.
+        target: Exact output path in a format supporting the requested level count.
         level: One quantification level. If omitted, parse every compatible level.
         software: Optional vendor slug used to select and verify the packaged rule document.
         parameters_software: Optional independent parameter-parser slug.
@@ -143,37 +140,26 @@ def convert_vendor_result(
 
     Raises:
         ValueError: The inputs cannot select or satisfy one packaged rule document, or the output
-            suffix does not match the requested conversion.
+            format cannot store the requested conversion.
     """
-    _require_vendor_target(target, level)
-    source, detected, parameters = _detect_vendor(
+    _require_new_target(data, target)
+    compiler = ParseRuleCompiler(
         data,
         parameters_path,
+        requested_levels=None if level is None else (level,),
+        checks=checks,
         software=software,
         parameters_software=parameters_software,
     )
-    evidence = search_parameter_evidence(parameters)
-    provenance = _vendor_provenance(detected, parameters, parameters_path)
+    parsed = compiler.compile().parse()
     target.parent.mkdir(parents=True, exist_ok=True)
-    parsed = (
-        _parse_all_levels(source, detected, evidence, provenance, target, checks=checks)
-        if level is None
-        else _parse_one_level(
-            source,
-            detected,
-            evidence,
-            provenance,
-            level,
-            target,
-            checks=checks,
-        )
-    )
+    write_parsed_levels(parsed, target)
     return ConvertedVendorResult(
         input_path=data,
         parameters_path=parameters_path,
         output_path=target,
-        software=detected.software,
-        software_version=detected.version,
+        software=compiler.detection.software,
+        software_version=compiler.detection.version,
         parsed=parsed,
     )
 
@@ -195,19 +181,21 @@ def benchmark_result(
     target: Path,
     /,
     *,
+    selection: LayerSelection = ALL_ABUNDANCE_LAYERS,
     diagnostic_method: DiagnosticMethod = _DEFAULT_DIAGNOSTICS,
     scoring_method: ScoringMethod = _DEFAULT_SCORING,
 ) -> ScoredResult:
-    """Annotate and score one existing APB2 result, then persist the replacement."""
+    """Annotate and score selected layers in one existing APB2 result."""
     _require_new_target(source, target)
     parsed = read_parsed_levels(source)
     annotated = ProteoBenchAnnotationParser.from_path(module).parse(parsed).annotate()
     analyzed = _analyze_parsed(
         annotated.parsed,
+        selection=selection,
         diagnostic_method=diagnostic_method,
         scoring_method=scoring_method,
     )
-    return _persist_scored(analyzed, source, target)
+    return _persist_scored(analyzed, source, target, search_parameters={})
 
 
 def score_result(
@@ -215,18 +203,20 @@ def score_result(
     target: Path,
     /,
     *,
+    selection: LayerSelection = ALL_ABUNDANCE_LAYERS,
     diagnostic_method: DiagnosticMethod = _DEFAULT_DIAGNOSTICS,
     scoring_method: ScoringMethod = _DEFAULT_SCORING,
 ) -> ScoredResult:
-    """Score the configured APB level and persist a new result."""
+    """Score selected layers in the configured APB level and persist a new result."""
     _require_new_target(source, target)
     parsed = read_parsed_levels(source)
     analyzed = _analyze_parsed(
         parsed,
+        selection=selection,
         diagnostic_method=diagnostic_method,
         scoring_method=scoring_method,
     )
-    return _persist_scored(analyzed, source, target)
+    return _persist_scored(analyzed, source, target, search_parameters={})
 
 
 def run_vendor_benchmark(
@@ -237,28 +227,32 @@ def run_vendor_benchmark(
     target: Path,
     /,
     *,
+    level: QuantificationLevel | None = None,
     software: str | None = None,
     parameters_software: str | None = None,
-    checks: AnnDataChecks = "standard",
+    checks: ValidationChecks = "standard",
+    selection: LayerSelection = ALL_ABUNDANCE_LAYERS,
     fasta_parameters: FastaAnnotationParameters = DEFAULT_FASTA_ANNOTATION_PARAMETERS,
     diagnostic_method: DiagnosticMethod = _DEFAULT_DIAGNOSTICS,
     scoring_method: ScoringMethod = _DEFAULT_SCORING,
 ) -> VendorBenchmarkResult:
-    """Convert, verify, annotate, score, and write one H5MU.
+    """Convert, verify, annotate, score, and persist one APB2 result.
 
     Quantitative aggregation is deliberately not part of this pipeline. Run the separate
     ``apb-aggregate`` command between conversion and benchmarking when a scored level must
     be derived from a lower one.
 
     Args:
-        data: Vendor result table.
+        data: Vendor result table or canonical multi-file result directory.
         parameters_path: Vendor search-parameter file.
         fasta_paths: One or more protein FASTA files.
         module: ProteoBench module settings with the complete sample design.
-        target: Exact final output path ending in ``.h5mu``.
+        target: Exact final output path in a format supporting the requested level count.
+        level: One quantification level. If omitted, parse every compatible level.
         software: Optional vendor slug used to verify packaged-rule detection.
         parameters_software: Optional independent parameter-parser slug.
         checks: AnnData layer-contract validation level.
+        selection: Layer-selection policy; defaults to every declared abundance layer.
         fasta_parameters: Peptide matching and reported-assignment settings.
         diagnostic_method: ProteoBench diagnostic implementation.
         scoring_method: ProteoBench scoring implementation.
@@ -270,24 +264,17 @@ def run_vendor_benchmark(
         ValueError: Inputs are incomplete, incompatible, or target an unsafe output.
     """
     _require_new_target(data, target)
-    _require_vendor_target(target, None)
     if not fasta_paths:
         raise ValueError("at least one FASTA path is required")
-    source, detected, parameters = _detect_vendor(
+    compiler = ParseRuleCompiler(
         data,
         parameters_path,
+        requested_levels=None if level is None else (level,),
+        checks=checks,
         software=software,
         parameters_software=parameters_software,
     )
-    provenance = _vendor_provenance(detected, parameters, parameters_path)
-    parsed = _parse_all_levels(
-        source,
-        detected,
-        search_parameter_evidence(parameters),
-        provenance,
-        None,
-        checks=checks,
-    )
+    parsed = compiler.compile().parse()
     proteins = ProteinDatabase(uniprotkb, refseq).parse(fasta_paths)
     verified = FastaAnnotationParser(
         parsed,
@@ -299,15 +286,24 @@ def run_vendor_benchmark(
     parsed = ProteoBenchAnnotationParser.from_path(module).parse(parsed).annotate().parsed
     analyzed = _analyze_parsed(
         parsed,
+        selection=selection,
         diagnostic_method=diagnostic_method,
         scoring_method=scoring_method,
     )
     return VendorBenchmarkResult(
-        software=detected.software,
-        software_version=detected.version,
+        software=compiler.detection.software,
+        software_version=compiler.detection.version,
         parsed=analyzed.parsed,
         fasta_reports=fasta_reports,
-        scored=_persist_scored(analyzed, data, target),
+        scored=_persist_scored(
+            analyzed,
+            data,
+            target,
+            search_parameters=cast(
+                dict[str, JsonValue],
+                compiler.parameters.model_dump(mode="json"),
+            ),
+        ),
     )
 
 
@@ -315,22 +311,33 @@ def _analyze_parsed(
     parsed: ParsedLevels,
     /,
     *,
+    selection: LayerSelection,
     diagnostic_method: DiagnosticMethod,
     scoring_method: ScoringMethod,
 ) -> _AnalyzedResult:
     configuration = embedded_configuration(parsed)
-    extracted = extract_level(parsed, configuration)
-    analysis = analyze_level(
-        extracted.calculation,
-        configuration,
-        diagnostic_method,
-        scoring_method,
-    )
+    resolved = resolve_layer_selection(parsed, configuration, selection)
+    layers: dict[str, ScoredLayerResult] = {}
+    for layer_name in resolved.layer_names:
+        selected = extract_layer(parsed, configuration, layer_name)
+        analysis = analyze_level(
+            selected.calculation,
+            configuration,
+            diagnostic_method,
+            scoring_method,
+        )
+        layers[selected.layer_name] = ScoredLayerResult(
+            level_name=selected.level_name,
+            layer_name=selected.layer_name,
+            diagnostics_slot=diagnostics_slot(selected.layer_name),
+            roles=selected.roles,
+            analysis=analysis,
+        )
     return _AnalyzedResult(
-        parsed=persist_result(parsed, extracted, analysis),
+        parsed=persist_results(parsed, resolved, layers),
         configuration=configuration,
-        extracted=extracted,
-        analysis=analysis,
+        selection=resolved,
+        layers=layers,
     )
 
 
@@ -339,110 +346,3 @@ def _require_new_target(source: Path, target: Path) -> None:
         raise ValueError("output must differ from input")
     if target.exists():
         raise ValueError(f"output already exists: {target}")
-
-
-def _require_vendor_target(target: Path, level: QuantificationLevel | None) -> None:
-    expected = ".h5mu" if level is None else ".h5ad"
-    if target.suffix != expected:
-        raise ValueError(f"output must end in {expected} for this conversion, got {target}")
-
-
-def _detect_vendor(
-    data: Path,
-    parameters_path: Path,
-    *,
-    software: str | None,
-    parameters_software: str | None,
-) -> tuple[SingleFile, DetectedRuleDocument, Parameters]:
-    source = SingleFile(path=data)
-    requested_software = None if software is None else software_slug(software)
-    parser_slug = parameters_software or requested_software or guess_software(source)
-    if parser_slug is None:
-        raise ValueError(f"could not auto-detect the vendor for {data}; pass --software SLUG")
-    parameters = parse_params(parameters_path, software=software_slug(parser_slug))
-    detected = detect_rule_document(parameters, source)
-    if requested_software is not None and detected.software != requested_software:
-        raise ValueError(
-            f"software {requested_software!r} does not match the detected vendor "
-            f"{detected.software!r}"
-        )
-    return source, detected, parameters
-
-
-def _vendor_provenance(
-    detected: DetectedRuleDocument,
-    parameters: Parameters,
-    parameters_path: Path,
-) -> dict[str, JsonValue]:
-    return {
-        "rule_selection_method": (
-            "software_version" if detected.version is not None else "columns"
-        ),
-        "search_parameters_version_status": (
-            "missing" if parameters.software_version is None else "present"
-        ),
-        "search_parameters_path": str(parameters_path),
-        "search_parameters": json.dumps(parameters.model_dump(mode="json")),
-    }
-
-
-def _parse_one_level(
-    source: SingleFile,
-    detected: DetectedRuleDocument,
-    evidence: SearchParameterEvidence,
-    provenance: dict[str, JsonValue],
-    level: QuantificationLevel,
-    target: Path,
-    *,
-    checks: AnnDataChecks,
-) -> ParsedLevels:
-    parser = ParseRuleCompiler(
-        facade=ParseRuleFacade(detected.document, level, evidence),
-        output=AnnDataOutput(checks=checks),
-    ).compile(source)
-    parsed_level = parser.parse()
-    parsed_level.uns.update(provenance)
-    parser.convert(parsed_level, target)
-    return ParsedLevels(
-        levels={level: parsed_level},
-        uns={
-            "produced_by": PRODUCER,
-            **provenance,
-            "quantification_levels": [level],
-        },
-    )
-
-
-def _parse_all_levels(
-    source: SingleFile,
-    detected: DetectedRuleDocument,
-    evidence: SearchParameterEvidence,
-    provenance: dict[str, JsonValue],
-    target: Path | None,
-    *,
-    checks: AnnDataChecks,
-) -> ParsedLevels:
-    """Parse every compatible level, writing the result only when a target is given."""
-    parsers, writer = compile_mudata_parsers(
-        document=detected.document,
-        levels=detected.document.levels,
-        parameter_evidence=evidence,
-        source=source,
-        checks=checks,
-    )
-    levels: dict[ParsedLevelName, ParsedLevel] = {}
-    for parser in parsers:
-        parsed_level = parser.parse()
-        parsed_level.uns.update(provenance)
-        levels[cast(ParsedLevelName, parser.level)] = parsed_level
-    parsed = ParsedLevels(
-        levels=levels,
-        uns={
-            "produced_by": PRODUCER,
-            **provenance,
-            "quantification_levels": list(levels),
-        },
-    )
-    if target is not None:
-        writer.write(parsed, target)
-    return parsed

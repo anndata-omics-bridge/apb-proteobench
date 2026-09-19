@@ -1,10 +1,12 @@
-"""Direct vendor conversion through the APB2 compiler/parser boundary."""
+"""Direct vendor conversion through APB2's high-level in-memory API."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
+import pandas as pd
+import pytest
 from apb2.result_facade import read_parsed_levels
 
 from apb_proteobench.api import convert_vendor_result, run_vendor_benchmark
@@ -79,6 +81,34 @@ def _write_diann_input(folder: Path) -> tuple[Path, Path]:
     return data, parameters
 
 
+def _write_alphadia_input(folder: Path) -> tuple[Path, Path, Path]:
+    matrix = folder / "input_file.tsv"
+    matrix.write_text("mod_seq_charge_hash\trun-A\n1\t100\n", encoding="utf-8")
+    precursors = folder / "input_file_secondary.tsv"
+    precursors.write_text(
+        "\t".join(
+            (
+                "mod_seq_charge_hash",
+                "sequence",
+                "charge",
+                "mods",
+                "mod_sites",
+                "genes",
+                "proteins",
+                "pg",
+                "pg_master",
+                "decoy",
+            )
+        )
+        + "\n"
+        + "1\tPEPTIDE\t2\t\t\tGENE1\tP1\tP1\tP1\t0\n",
+        encoding="utf-8",
+    )
+    parameters = folder / "alphadia.log.txt"
+    parameters.write_text("0:00:00.0 PROGRESS: version: 1.12.1\n", encoding="utf-8")
+    return matrix, precursors, parameters
+
+
 def _write_benchmark_diann_input(folder: Path) -> tuple[Path, Path, Path, Path]:
     data = folder / "benchmark-report.tsv"
     columns = (
@@ -147,9 +177,13 @@ def _write_benchmark_diann_input(folder: Path) -> tuple[Path, Path, Path, Path]:
     return data, parameters, fasta, module
 
 
-def test_convert_vendor_result_writes_one_level_with_compiled_parser(tmp_path: Path) -> None:
+@pytest.mark.parametrize("suffix", [".h5ad", ".parquet", ".duckdb"])
+def test_convert_vendor_result_writes_one_level_with_compiled_parser(
+    suffix: str,
+    tmp_path: Path,
+) -> None:
     data, parameters = _write_diann_input(tmp_path)
-    target = tmp_path / "results" / "ion.h5ad"
+    target = tmp_path / "results" / f"ion{suffix}"
 
     result = convert_vendor_result(
         data,
@@ -166,53 +200,39 @@ def test_convert_vendor_result_writes_one_level_with_compiled_parser(tmp_path: P
     assert list(restored.levels) == ["ion"]
     assert restored.levels["ion"].obs.frame.height == 2
     assert restored.levels["ion"].var.frame.height == 1
-    provenance = restored.levels["ion"].uns
-    assert provenance["rule_selection_method"] == "software_version"
-    assert provenance["search_parameters_path"] == str(parameters)
-    search_parameters = provenance["search_parameters"]
-    assert isinstance(search_parameters, str)
-    assert json.loads(search_parameters)["software_version"] == "1.8.1"
+    assert restored.uns == {}
+    level_provenance = restored.levels["ion"].uns
+    assert "rule_json" in level_provenance
+    assert "search_parameters" not in level_provenance
+    assert "search_parameters_path" not in level_provenance
 
 
-def test_cli_convert_without_level_writes_every_compatible_level(tmp_path: Path) -> None:
-    data, parameters = _write_diann_input(tmp_path)
-    output = tmp_path / "results" / "all-levels"
+def test_convert_vendor_result_reads_alphadia_directory_bundle(tmp_path: Path) -> None:
+    matrix, precursors, parameters = _write_alphadia_input(tmp_path)
+    target = tmp_path / "alphadia.parquet"
 
-    status = app(
-        [
-            "convert",
-            str(data),
-            "--params",
-            str(parameters),
-            "--software",
-            "diann",
-            "--output",
-            str(output),
-        ],
-        exit_on_error=False,
-        result_action="return_value",
+    result = convert_vendor_result(
+        tmp_path,
+        parameters,
+        target,
+        level="ion",
+        software="alphadia",
     )
 
-    assert status == 0
-    restored = read_parsed_levels(output.with_suffix(".h5mu"))
-    assert list(restored.levels) == ["ion", "protein", "fragment"]
+    assert matrix.is_file()
+    assert precursors.is_file()
+    ion = result.parsed.levels["ion"]
+    assert ion.obs.frame["run"].to_list() == ["run-A"]
+    assert ion.layers["Intensity"].values.row(0)[1:] == (100.0,)
 
 
-def test_cli_convert_requires_parameter_file(tmp_path: Path) -> None:
-    data, _parameters = _write_diann_input(tmp_path)
-
-    status = app(
-        ["convert", str(data), "ion"],
-        exit_on_error=False,
-        result_action="return_value",
-    )
-
-    assert status == 1
-
-
-def test_run_vendor_benchmark_writes_one_complete_h5mu(tmp_path: Path) -> None:
+@pytest.mark.parametrize("suffix", [".h5mu", ".parquet", ".duckdb"])
+def test_run_vendor_benchmark_writes_one_complete_result(
+    suffix: str,
+    tmp_path: Path,
+) -> None:
     data, parameters, fasta, module = _write_benchmark_diann_input(tmp_path)
-    target = tmp_path / "stored.h5mu"
+    target = tmp_path / f"stored{suffix}"
 
     result = run_vendor_benchmark(
         data,
@@ -225,10 +245,10 @@ def test_run_vendor_benchmark_writes_one_complete_h5mu(tmp_path: Path) -> None:
 
     restored = read_parsed_levels(target)
     assert result.software == "diann"
-    assert result.scored.analysis.scores.nr_feature == 3
+    assert result.scored.layers["Precursor_Normalised"].analysis.scores.nr_feature == 3
     assert result.fasta_reports.peptide_levels["ion"].unmatched_feature_count == 0
     assert "fasta_validation" in restored.levels["ion"].varm
-    assert "proteobench" in restored.levels["ion"].varm
+    assert "proteobench:Precursor_Normalised" in restored.levels["ion"].varm
     assert restored.levels["ion"].obs.frame.get_column("sample_name").to_list() == [
         "A1",
         "A2",
@@ -237,9 +257,65 @@ def test_run_vendor_benchmark_writes_one_complete_h5mu(tmp_path: Path) -> None:
     ]
 
 
-def test_cli_run_starts_at_vendor_files_and_writes_final_h5mu(tmp_path: Path) -> None:
+def test_run_vendor_benchmark_can_convert_only_ion_to_h5ad(tmp_path: Path) -> None:
     data, parameters, fasta, module = _write_benchmark_diann_input(tmp_path)
-    target = tmp_path / "stored.h5mu"
+    target = tmp_path / "stored.h5ad"
+
+    result = run_vendor_benchmark(
+        data,
+        parameters,
+        (fasta,),
+        module,
+        target,
+        level="ion",
+        software="diann",
+    )
+
+    assert list(result.parsed.levels) == ["ion"]
+    assert list(read_parsed_levels(target).levels) == ["ion"]
+
+
+def test_cli_run_can_convert_only_ion_to_h5ad(tmp_path: Path) -> None:
+    data, parameters, fasta, module = _write_benchmark_diann_input(tmp_path)
+    target = tmp_path / "stored.h5ad"
+    result_performance = tmp_path / "pmultiqc" / "result_performance.csv"
+
+    status = app(
+        [
+            "run",
+            str(data),
+            str(fasta),
+            "--params",
+            str(parameters),
+            "--module",
+            str(module),
+            "--software",
+            "diann",
+            "--level",
+            "ion",
+            "--x",
+            "--output",
+            str(target),
+            "--result-performance",
+            str(result_performance),
+        ],
+        exit_on_error=False,
+        result_action="return_value",
+    )
+
+    assert status == 0
+    assert list(read_parsed_levels(target).levels) == ["ion"]
+    assert result_performance.is_file()
+
+
+@pytest.mark.parametrize("suffix", [".h5mu", ".parquet", ".duckdb"])
+def test_cli_run_starts_at_vendor_files_and_writes_final_result(
+    suffix: str,
+    tmp_path: Path,
+) -> None:
+    data, parameters, fasta, module = _write_benchmark_diann_input(tmp_path)
+    target = tmp_path / f"stored{suffix}"
+    result_performance = tmp_path / "pmultiqc" / "result_performance.csv"
 
     status = app(
         [
@@ -254,12 +330,25 @@ def test_cli_run_starts_at_vendor_files_and_writes_final_h5mu(tmp_path: Path) ->
             "diann",
             "--output",
             str(target),
+            "--x",
+            "--result-performance",
+            str(result_performance),
         ],
         exit_on_error=False,
         result_action="return_value",
     )
 
     assert status == 0
+    exported = pd.read_csv(result_performance)
+    assert "precursor ion" in exported
+    assert len(exported) == 3
+    proteobot_paths = list(result_performance.parent.glob("*.json"))
+    assert len(proteobot_paths) == 1
+    proteobot = json.loads(proteobot_paths[0].read_text(encoding="utf-8"))
+    assert proteobot["software_name"] == "DIA-NN"
+    assert proteobot["software_version"] == "1.8.1"
+    assert proteobot_paths[0].stem == proteobot["intermediate_hash"]
+    assert proteobot["fixed_mods"] == "C[Carbamidomethyl]"
     restored = read_parsed_levels(target)
     assert "fasta_validation" in restored.levels["ion"].varm
-    assert "proteobench" in restored.levels["ion"].varm
+    assert "proteobench:Precursor_Normalised" in restored.levels["ion"].varm

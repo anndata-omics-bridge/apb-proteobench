@@ -24,10 +24,7 @@ staged:  vendor table -> APB2 result -> FASTA check -> [aggregation] -> scored r
 Neither route aggregates. APB ProteoBench declares only APB2 and APB FASTA; the optional
 aggregation step is reached through the separate `apb-aggregate` CLI, never as a library import.
 
-Use the direct route for one final artifact. Use the staged route when intermediates need to be
-inspected, cached, or reused, or when the scored level must be derived from a lower one. Existing APB2 results can enter at either FASTA checking or
-ProteoBench benchmarking. Fine-grained `convert`, `annotate`, and `score` operations remain
-available.
+Use the direct route for one final artifact. Use the staged route when intermediates need to be inspected, cached, or reused, or when the scored level must be derived from a lower one. Existing APB2 results can enter at either FASTA checking or ProteoBench benchmarking. The command line stays at these two complete workflows; lower-level conversion, annotation, and scoring remain Python APIs.
 
 ## Command-line interface
 
@@ -55,6 +52,8 @@ The aggregation call is conditional and belongs to `apb-aggregate`, not to this 
 The [end-to-end guide](workflow.md) explains both routes; the [CLI reference](cli.md) lists every
 argument and option.
 
+For the existing pMultiQC ProteoBench module, add `--x --result-performance reports/result_performance.csv` to `run` or `benchmark`. The compatibility export accepts one ion-level layer and publishes both the pMultiQC CSV and the sibling `<intermediate_hash>.json` ProteoBot datapoint while leaving pMultiQC and MultiQC unchanged.
+
 ## Python API
 
 File-to-file functions mirror the complete CLI operations and return typed results for inspection:
@@ -73,7 +72,7 @@ result = run_vendor_benchmark(
     software="spectronaut",
 )
 print(result.software, list(result.parsed.levels))
-print(result.scored.analysis.scores.nr_feature)
+print(result.scored.layers["Intensity"].analysis.scores.nr_feature)
 ```
 
 The API also exposes the annotation parser, storage-neutral calculation workflow, and replaceable
@@ -87,19 +86,14 @@ software, versions, file types, and quantification levels.
 
 | Operation | Accepted input | Output |
 | --- | --- | --- |
-| `run` | vendor table, parameters, one or more FASTAs, and module TOML | FASTA-checked, scored all-level `.h5mu` |
-| `convert` | supported vendor table plus search-parameter file | one-level `.h5ad` or all-level `.h5mu` |
+| `run` | vendor table, parameters, one or more FASTAs, and module TOML | FASTA-checked, scored H5MU, Parquet, or DuckDB result |
 | `benchmark` | APB2 result plus module TOML | annotated and scored APB2 result |
-| `annotate` | APB2 h5ad, h5mu, Parquet, or DuckDB result plus module TOML | APB2 h5ad, h5mu, Parquet, or DuckDB result |
-| `score` | annotated APB2 h5ad, h5mu, Parquet, or DuckDB result | scored APB2 h5ad, h5mu, Parquet, or DuckDB result |
 
-The annotation command checks that the module describes every observation exactly once. It
-adds `raw_file`, `sample_name`, and `condition` to the configured level. HYE and HY are module
-configurations consumed by the same calculation rather than separate hard-coded modes.
+Both commands can additionally emit the canonical `result_performance.csv` pMultiQC input and matching hash-named ProteoBot JSON when requested. Their APB2 result also retains the ProteoBench score and provenance record as JSON-compatible metadata under `uns["apb"]["proteobench"]`.
 
-The resulting feature table lives in `varm["proteobench"]`. Aggregate scores, method identities,
-role resolution, compatibility versions, and mapper provenance live in
-`uns["apb"]["proteobench"]`.
+The annotation stage checks that the module describes every observation exactly once. It adds `raw_file`, `sample_name`, and `condition` to the configured level. HYE and HY are module configurations consumed by the same calculation rather than separate hard-coded modes.
+
+Scoring uses every layer listed under the APB `abundance` role by default. Pass `--x` for only the APB primary layer represented by AnnData `X`, or `--layer NAME` for one named abundance layer. Per-layer feature diagnostics live in `varm["proteobench:<layer-name>"]`; selection provenance, aggregate scores, method identities, role resolution, compatibility versions, and mapper provenance live in `uns["apb"]["proteobench"]`.
 
 The [module guide](configuration.md) lists all packaged module documents and their current support
 status. The [result-layout guide](results.md) documents the stored annotation, diagnostics, scores,

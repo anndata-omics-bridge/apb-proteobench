@@ -44,7 +44,7 @@ class ProteoBenchAnnotation:
             applied,
             "proteobench",
             AnnotationFileOrigin(Path(self.module.source.name)),
-            metadata={"schema_version": "1", **self.module.metadata()},
+            metadata=self.module.metadata(),
         )
         levels = dict(self.parsed.levels)
         levels[level_name] = recorded.parsed.levels[level_name]
@@ -84,7 +84,7 @@ class ProteoBenchAnnotationParser:
         table = make_annotation_table(
             _sample_frame(self.module),
             ("__match_raw_file",),
-            ("__match_raw_file_alias",),
+            ("__match_aliases",),
             AnnotationFileOrigin(Path(self.module.source.name)),
         )
         selected = ParsedLevels(
@@ -110,11 +110,26 @@ class ProteoBenchAnnotationParser:
 
 def _sample_frame(module: LoadedModule) -> pl.DataFrame:
     samples = module.settings.samples
-    values: dict[str, list[str | None]] = {
+    values: dict[str, list[str]] = {
         "__match_raw_file": [sample.raw_file for sample in samples],
         "raw_file": [sample.raw_file for sample in samples],
         "sample_name": [sample.sample_name for sample in samples],
         "condition": [sample.condition for sample in samples],
     }
-    values["__match_raw_file_alias"] = [sample.raw_file_alias for sample in samples]
-    return pl.DataFrame(values)
+    frame = pl.DataFrame(values)
+    return frame.with_columns(
+        pl.Series(
+            "__match_aliases",
+            [
+                list(
+                    dict.fromkeys(
+                        identifier
+                        for identifier in (sample.raw_file_alias, sample.sample_name)
+                        if identifier is not None and identifier != sample.raw_file
+                    )
+                )
+                for sample in samples
+            ],
+            dtype=pl.List(pl.String),
+        )
+    )

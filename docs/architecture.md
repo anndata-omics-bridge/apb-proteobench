@@ -13,7 +13,7 @@ calculation protocols and workflow
         ↓
 diagnostics / scoring / configuration
 
-apb-proteobench → APB2 public annotation and result facades
+apb-proteobench → APB2 public in-memory, annotation, and result facades
 APB2 -/→ apb-proteobench
 ```
 
@@ -23,7 +23,7 @@ APB2 owns storage-neutral `ParsedLevels`, result adapters, and generic relationa
 annotation. This package owns module semantics, complete ProteoBench coverage, species mapping,
 diagnostics, scoring, compatibility assets, and presentation.
 
-The file-to-file API owns physical orchestration. The integration boundary is the only layer that
+The file-to-file API owns physical orchestration. Raw-vendor workflows construct APB2's `ParseRuleCompiler`: canonical parser output goes directly to APB FASTA, while `compiler.parameters` supplies ProteoBot fields without provenance reconstruction. The integration boundary is the only layer that
 extracts scientific input from `ParsedLevels` or attaches calculation output. The CLI composes that
 API and presents results; it does not reopen output files.
 
@@ -43,6 +43,4 @@ part of this release.
 
 ## Persisted extension data
 
-Annotation evidence is shared result metadata. Diagnostics and scores belong to the module-selected
-level. APB2's result writers map those logical values to h5ad, h5mu, Parquet, or DuckDB; the
-calculation remains independent of every storage backend. See [Result layout](results.md).
+ProteoBench owns one tool namespace. Root `provenance` records annotation configuration and common scoring methods; the module-selected level records `annotation` matching evidence and `scoring[quantity_name]`. Aligned diagnostics remain in that level's `varm`. APB2's writers map these logical owners to H5AD, H5MU, Parquet or DuckDB without tool-specific branches; calculations remain storage-independent. See [Result layout](results.md).

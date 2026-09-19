@@ -10,10 +10,11 @@ apb-proteobench run report.tsv proteins.fasta \
     --params search-parameters.txt \
     --module module_settings.toml \
     --software spectronaut \
-    --output results/scored.h5mu
+    --level ion \
+    --output results/scored.h5ad
 ```
 
-This one call converts every compatible level with APB2, verifies modification-stripped peptide sequences against the FASTA database, applies the ProteoBench sample design, calculates diagnostics and scores, and writes one final `results/scored.h5mu`. It scores the level named in `module_settings.toml` as the vendor table reports it and performs no quantitative aggregation.
+This one call converts the selected APB2 quantification level, verifies modification-stripped peptide sequences against the FASTA database, applies the ProteoBench sample design, calculates diagnostics and scores, and writes one final APB2 result. Omit `--level` to convert every compatible level. Single-level H5AD and multi-level H5MU targets are supported alongside Parquet and DuckDB. Intermediate values remain storage-neutral `ParsedLevels`, and APB2's `write_parsed_levels` selects persistence from the target suffix. It scores the level named in `module_settings.toml` as the vendor table reports it and performs no quantitative aggregation.
 
 The equivalent reusable workflow calls the existing tools directly:
 
@@ -28,7 +29,9 @@ The `apb-aggregate` step is optional: include it only when the scored level must
 
 APB ProteoBench declares only `apb2` and `apb-fasta`, and reaches aggregation solely as a subprocess.
 
-`benchmark` combines annotation and scoring for an existing APB2 result; `annotate` and `score` remain separately callable. Scoring writes diagnostics to `varm["proteobench"]` and scores to `uns["apb"]["proteobench"]`. See the [documentation](docs/index.md).
+The CLI intentionally exposes only `run` and `benchmark`; lower-level conversion, annotation, and scoring remain Python APIs. `benchmark` combines annotation and scoring for an existing APB2 result. Scoring includes every declared abundance layer by default. `--x` selects only the APB primary layer projected to AnnData `X`, while `--layer NAME` selects one named abundance layer. Per-layer diagnostics live in `varm["proteobench:<layer-name>"]`, while selection provenance and layer-keyed scores live in `uns["apb"]["proteobench"]`. See the [documentation](docs/index.md).
+
+To feed the existing pMultiQC ProteoBench module and retain the matching ProteoBot result, add `--x --result-performance reports/result_performance.csv` to `run` or `benchmark`. The option publishes two staged files in the same directory: `result_performance.csv` plus `<intermediate_hash>.json` in the schema and naming convention used by `Proteobench/Results_quant_ion_DDA`. Each file is published atomically without overwrite, and a failed publication rolls back any file added by the same call. This export requires `--x` or one `--layer NAME`, supports only an ion-level layer, refuses either existing target, and uses the already-computed intermediate, scores, and APB search-parameter metadata without reopening the APB2 result.
 
 The package owns all 11 ProteoBench module TOMLs: the eight quantitative HYE/HY modules used by
 legacy APB and the newer plasma, de novo, and entrapment documents. The latter three are explicitly

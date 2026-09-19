@@ -103,9 +103,8 @@ def parsed_result() -> ParsedLevels:
         primary_layer_name="Intensity",
         uns={
             "quantification_level": "ion",
-            "software_name": "Synthetic",
-            "matrix_values_projected": True,
             "column_roles": {"protein_assignment": "Protein_Ids"},
+            "layer_roles": {"abundance": ["Intensity"]},
         },
         layers={
             "Intensity": FinalLayerTable(
@@ -124,7 +123,7 @@ def parsed_result() -> ParsedLevels:
         obsp={},
         varp={},
     )
-    return ParsedLevels(levels={"ion": level}, uns={"produced_by": "apb2"})
+    return ParsedLevels(levels={"ion": level}, uns={})
 
 
 def write_module(path: Path, /, *, alias: bool = False, hy: bool = False) -> None:
