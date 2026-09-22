@@ -80,7 +80,7 @@ apb-proteobench benchmark \
 multiqc --proteobench-plugin reports -o reports/multiqc
 ```
 
-The export requires `--x` for primary/X-only scoring or one `--layer NAME`; it rejects the default all-layer selection, non-ion levels, wrong CSV filenames, and either existing output. Both files are staged before publication from the completed in-memory diagnostics, scores, and search-parameter metadata; each final path is created atomically, and a failed publication rolls back files added by the same call. The CLI does not reopen or recalculate the APB2 result. The CSV uses `index=False`, while the JSON uses ProteoBot's hash filename and top-level datapoint fields. pMultiQC and MultiQC require no changes.
+The export requires `--x` for primary/X-only scoring or one `--layer NAME`; it rejects the default all-layer selection, non-ion levels, wrong CSV filenames, and either existing output. Both files are staged before publication; each final path is created atomically, and a failed publication rolls back files added by the same call. The CLI reads the selected in-memory APB2 layer once more to compute the versioned SHA-256 submission hash; scoring itself does not compute a hash. The CSV uses `index=False`, while the JSON uses ProteoBot's hash filename and top-level datapoint fields. pMultiQC and MultiQC require no changes.
 
 ## Python workflow
 

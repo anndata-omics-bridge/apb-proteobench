@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Breaking:** ProteoBot export now names its JSON and dataset with a versioned SHA-256 content hash of the selected abundance layer and scoring inputs. Historical SHA-1 submissions are not matched by the new identity. Scoring no longer computes or persists an upload hash; the optional bundle writer owns it. Species mean and median reductions use Polars while condition reductions remain NumPy.
+
+- **Breaking:** `run` uses one `--software` parameter-grammar hint; removed `--params-software`. APB2 restricts result recognition to the hinted vendor and its declared quantification software (including FragPipe → DIA-NN), or recognizes all vendors when no hint is supplied. Scoring and compatibility exports are unchanged.
+
+- `run --timings-dir DIR` optionally publishes three independent version-1 tool-timing JSON files for in-process APB2 conversion, FASTA verification, and ProteoBench benchmarking. Existing timing targets are refused before conversion; scored results and compatibility exports are unchanged.
+
 - **Breaking:** tool-owned metadata combines annotation and scoring under `proteobench`. Root `provenance.annotation` stores configuration/source once; root `provenance.scoring` stores common versions, methods and selection mode (schema 3). Level `annotation` preserves matching evidence and `scoring[quantity_name]` retains per-layer results without a `layers` wrapper or `X` alias. Annotation-only results remain scoreable; existing scores are still protected. Calculations, CLI options, CSV/ProteoBot JSON exports and pMultiQC behavior are unchanged.
 
 - Adapted conversion and scoring to APB2's canonical shared/level metadata scopes; shared search-parameter provenance is no longer copied into every level.

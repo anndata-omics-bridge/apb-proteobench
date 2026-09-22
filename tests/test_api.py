@@ -757,8 +757,8 @@ def test_cli_exposes_only_complete_workflows() -> None:
                 "ProteoBench module settings TOML",
                 "New scored APB2 .h5ad, .h5mu, .parquet, or",
                 ".duckdb result",
-                "Vendor software selecting APB2 parsing rules",
-                "Software parser override for the parameter file",
+                "Parameter-file software; restrict result",
+                "recognition to plausible vendors",
                 "FASTA peptide-matching backend",
                 "Treat isoleucine and leucine as equivalent",
                 "Separator between protein accessions",
@@ -787,6 +787,7 @@ def test_cli_help_describes_every_argument_and_parameter(
     rendered = capsys.readouterr().out
     assert all(description in rendered for description in descriptions)
     assert "--no-" not in rendered
+    assert "--params-software" not in rendered
 
 
 def _object(value: JsonValue) -> dict[str, JsonValue]:

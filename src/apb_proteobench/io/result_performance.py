@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
+import struct
 import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 RESULT_PERFORMANCE_FILENAME = "result_performance.csv"
-_SHA1 = re.compile(r"^[0-9a-f]{40}$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_HASH_VERSION = b"apb-proteobench-content-v1\0"
 _REQUIRED_COLUMNS = frozenset(
     {
         "precursor ion",
@@ -85,6 +90,19 @@ class ResultPerformanceFiles:
     proteobot_json: Path
 
 
+@dataclass(frozen=True, slots=True)
+class SubmissionContent:
+    """Selected quantitative content used for a new ProteoBot upload identity."""
+
+    matrix: NDArray[np.float32] | NDArray[np.float64]
+    feature_ids: pd.Index
+    reported_proteins: pd.Series
+    raw_files: tuple[str, ...]
+    conditions: tuple[str, ...]
+    settings: Mapping[str, object]
+    mapper_sha256: str
+
+
 class _Syncable(Protocol):
     """Minimal writable-file capability needed for durable staging."""
 
@@ -131,17 +149,19 @@ def write_result_performance_bundle(
     datapoint: Mapping[str, object],
     target: Path,
     /,
+    *,
+    content: SubmissionContent,
 ) -> ResultPerformanceFiles:
     """Stage and publish a pMultiQC CSV and its ProteoBot datapoint JSON.
 
-    The JSON is named from the ProteoBench intermediate hash, matching the
-    ``Proteobench/Results_quant_ion_DDA`` repository convention. If either final
-    path already exists, neither file is written.
+    The JSON is named from a versioned hash of the selected layer and its scoring
+    inputs. If either final path already exists, neither file is written.
 
     Args:
         frame: ProteoBench-compatible ion-level intermediate table.
-        datapoint: Complete JSON-compatible ProteoBot datapoint.
+        datapoint: JSON-compatible ProteoBot fields excluding writer-owned identity.
         target: Exact CSV output path, named ``result_performance.csv``.
+        content: Selected abundance, feature, protein, and sample values.
 
     Returns:
         Both published paths.
@@ -151,7 +171,10 @@ def write_result_performance_bundle(
         OSError: The output directory or files cannot be written.
     """
     _validate_frame(frame, target)
-    json_target = _proteobot_target(datapoint, target)
+    if target.exists():
+        raise ValueError(f"result-performance output already exists: {target}")
+    document = _complete_datapoint(datapoint, content)
+    json_target = _proteobot_target(document, target)
     existing = next((path for path in (target, json_target) if path.exists()), None)
     if existing is not None:
         raise ValueError(f"result-performance output already exists: {existing}")
@@ -162,7 +185,7 @@ def write_result_performance_bundle(
     published: list[Path] = []
     try:
         csv_temporary = _stage_csv(frame, target)
-        json_temporary = _stage_json(datapoint, json_target)
+        json_temporary = _stage_json(document, json_target)
         for temporary, final in (
             (json_temporary, json_target),
             (csv_temporary, target),
@@ -185,6 +208,70 @@ def write_result_performance_bundle(
     return ResultPerformanceFiles(csv=target, proteobot_json=json_target)
 
 
+def _complete_datapoint(
+    datapoint: Mapping[str, object], content: SubmissionContent
+) -> dict[str, object]:
+    if {"id", "intermediate_hash"} & datapoint.keys():
+        raise ValueError("ProteoBot identity fields belong to the result-performance writer")
+    software_name = datapoint.get("software_name")
+    if not isinstance(software_name, str):
+        raise ValueError("ProteoBot software_name must be a string")
+    comments = datapoint.get("submission_comments", "")
+    if not isinstance(comments, str):
+        raise ValueError("ProteoBot submission_comments must be a string")
+    digest = _content_hash(content)
+    return {
+        **datapoint,
+        "id": f"{software_name.replace(' ', '_')}_{digest[:12]}",
+        "intermediate_hash": digest,
+        "submission_comments": (
+            f"{comments}\n\nDataset URL: https://proteobench.cubimed.rub.de/datasets/{digest}/"
+        ),
+    }
+
+
+def _content_hash(content: SubmissionContent) -> str:
+    """Hash one canonical, order-independent scientific submission input."""
+    matrix = content.matrix
+    rows, columns = matrix.shape
+    if rows != len(content.raw_files) or rows != len(content.conditions):
+        raise ValueError("submission content has misaligned observations")
+    if columns != len(content.feature_ids) or columns != len(content.reported_proteins):
+        raise ValueError("submission content has misaligned features")
+    if len(set(content.raw_files)) != rows or not content.feature_ids.is_unique:
+        raise ValueError("submission content requires unique raw files and feature IDs")
+
+    digest = hashlib.sha256(_HASH_VERSION)
+
+    def put_text(value: object) -> None:
+        if value is None or value is pd.NA or (isinstance(value, float) and np.isnan(value)):
+            digest.update(b"\x00")
+            return
+        encoded = str(value).encode("utf-8")
+        digest.update(b"\x01")
+        digest.update(struct.pack("<Q", len(encoded)))
+        digest.update(encoded)
+
+    settings = json.dumps(content.settings, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    put_text(settings)
+    put_text(content.mapper_sha256)
+    observation_order = sorted(range(rows), key=content.raw_files.__getitem__)
+    feature_order = sorted(range(columns), key=content.feature_ids.__getitem__)
+    digest.update(struct.pack("<QQ", rows, columns))
+    for row in observation_order:
+        put_text(content.raw_files[row])
+        put_text(content.conditions[row])
+    for column in feature_order:
+        put_text(content.feature_ids[column])
+        put_text(content.reported_proteins.iloc[column])
+
+    values = np.array(matrix[np.ix_(observation_order, feature_order)], dtype="<f8", order="C")
+    values.view("<u8")[np.isnan(values)] = 0x7FF8000000000000
+    values[values == 0] = 0.0
+    digest.update(values.tobytes(order="C"))
+    return digest.hexdigest()
+
+
 def _validate_frame(frame: pd.DataFrame, target: Path) -> None:
     if target.name != RESULT_PERFORMANCE_FILENAME:
         raise ValueError(
@@ -203,8 +290,10 @@ def _proteobot_target(datapoint: Mapping[str, object], target: Path) -> Path:
     if missing:
         raise ValueError(f"ProteoBot datapoint is missing fields: {missing}")
     intermediate_hash = datapoint.get("intermediate_hash")
-    if not isinstance(intermediate_hash, str) or _SHA1.fullmatch(intermediate_hash) is None:
-        raise ValueError("ProteoBot intermediate_hash must be a lowercase SHA-1 hexadecimal value")
+    if not isinstance(intermediate_hash, str) or _SHA256.fullmatch(intermediate_hash) is None:
+        raise ValueError(
+            "ProteoBot intermediate_hash must be a lowercase SHA-256 hexadecimal value"
+        )
     return target.with_name(f"{intermediate_hash}.json")
 
 

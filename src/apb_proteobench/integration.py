@@ -207,7 +207,6 @@ def extract_layer(
         raise ValueError(
             f"embedded ProteoBench configuration selects unavailable level {level_name!r}"
         ) from error
-    _require_available_storage(level)
     _require_layer(level, layer_name)
     feature = _single_feature_key(level)
     proteins = _protein_role(level)

@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Literal
-
 import numpy as np
 import pandas as pd
+import polars as pl
 from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator
 from scipy.stats import rankdata
 
@@ -14,38 +12,6 @@ PROTEOBENCH_COMPATIBILITY_VERSION = "0.17.0"
 PROTEOBENCH_SOURCE_REVISION = "fc95e712ca0466485814d3895087a048cfc0d2b0"
 
 type ScoreMetric = int | float
-
-
-@dataclass(frozen=True, slots=True)
-class MedianAggregation:
-    """Reduce a metric by its median.
-
-    ``name`` is both the reducer pandas is asked for and the prefix of the metric names
-    this aggregation produces. Those two uses coincide deliberately, so ProteoBench's
-    column vocabulary and pandas' reducer vocabulary cannot drift apart silently; if they
-    ever must differ, that is the moment to split this into two fields.
-    """
-
-    name: Literal["median"] = "median"
-
-    def absolute(self, values: pd.Series) -> float:
-        return float(values.abs().median())
-
-
-@dataclass(frozen=True, slots=True)
-class MeanAggregation:
-    """Reduce a metric by its mean. See :class:`MedianAggregation` on ``name``."""
-
-    name: Literal["mean"] = "mean"
-
-    def absolute(self, values: pd.Series) -> float:
-        return float(values.abs().mean())
-
-
-type Aggregation = MedianAggregation | MeanAggregation
-
-_MEDIAN = MedianAggregation()
-_MEAN = MeanAggregation()
 
 
 class _ScoreModel(BaseModel):
@@ -74,7 +40,6 @@ class CutoffScores(RootModel[dict[str, ScoreMetric]]):
 class ProteoBenchScores(_ScoreModel):
     """Typed storage contract for one ProteoBench score document."""
 
-    intermediate_hash: str
     results: dict[str, CutoffScores]
     proteobench_version: str
     median_abs_epsilon_global: float
@@ -90,7 +55,6 @@ class ProteoBenchScores(_ScoreModel):
 
 def build_scores(
     intermediate: pd.DataFrame,
-    intermediate_hash: str,
     config: ScoreConfig,
 ) -> ProteoBenchScores:
     """Compute the compatible score-only ProteoBench storage model."""
@@ -101,7 +65,6 @@ def build_scores(
     selected = results[str(config.default_cutoff)]
     selected_metrics = selected.root
     return ProteoBenchScores(
-        intermediate_hash=intermediate_hash,
         results=results,
         proteobench_version=PROTEOBENCH_COMPATIBILITY_VERSION,
         median_abs_epsilon_global=_required_float_metric(
@@ -158,10 +121,7 @@ def compute_roc_auc(frame: pd.DataFrame) -> float:
 def _metrics_at_cutoff(frame: pd.DataFrame, cutoff: int) -> CutoffScores:
     selected = frame[frame["nr_observed"] >= cutoff]
     metrics: dict[str, ScoreMetric] = {
-        **_epsilon_metrics(frame, cutoff, aggregation=_MEDIAN),
-        **_epsilon_metrics(frame, cutoff, aggregation=_MEAN),
-        **_precision_metrics(frame, cutoff, aggregation=_MEDIAN),
-        **_precision_metrics(frame, cutoff, aggregation=_MEAN),
+        **_species_metrics(selected),
         **_cv_metrics(selected),
         "variance_epsilon_global": float(selected["epsilon"].var()) if len(selected) else 0.0,
         "nr_feature": len(selected),
@@ -170,53 +130,57 @@ def _metrics_at_cutoff(frame: pd.DataFrame, cutoff: int) -> CutoffScores:
     return CutoffScores(metrics)
 
 
-def _epsilon_metrics(
-    frame: pd.DataFrame,
-    cutoff: int,
-    *,
-    aggregation: Aggregation,
-) -> dict[str, float]:
-    selected = frame[frame["nr_observed"] >= cutoff]
-    per_species = selected.groupby("species")["epsilon"].apply(aggregation.absolute)
-    return {
-        f"{aggregation.name}_abs_epsilon_global": aggregation.absolute(selected["epsilon"]),
-        f"{aggregation.name}_abs_epsilon_eq_species": float(per_species.mean()),
-        **{
-            f"{aggregation.name}_abs_epsilon_{species}": float(value)
-            for species, value in per_species.items()
-        },
-    }
-
-
-def _precision_metrics(
-    frame: pd.DataFrame,
-    cutoff: int,
-    *,
-    aggregation: Aggregation,
-) -> dict[str, float]:
-    selected = frame[frame["nr_observed"] >= cutoff]
-    grouped = selected.groupby("species")["log2_A_vs_B"]
-    centers = grouped.transform(aggregation.name)
-    precision = selected["log2_A_vs_B"] - centers
-
-    precision_frame = selected[["species"]].copy()
-    precision_frame["epsilon_precision"] = precision
-    per_species = precision_frame.groupby("species")["epsilon_precision"].apply(
-        aggregation.absolute
+def _species_metrics(selected: pd.DataFrame) -> dict[str, float]:
+    """Calculate global and equal-species metrics with one Polars grouping."""
+    values = pl.from_pandas(
+        selected[["species", "epsilon", "log2_A_vs_B"]], include_index=False
+    ).with_columns(pl.col("epsilon", "log2_A_vs_B").fill_nan(None))
+    values = values.with_columns(
+        median_center=pl.col("log2_A_vs_B").median().over("species"),
+        mean_center=pl.col("log2_A_vs_B").mean().over("species"),
+    ).with_columns(
+        median_precision=(pl.col("log2_A_vs_B") - pl.col("median_center")).abs(),
+        mean_precision=(pl.col("log2_A_vs_B") - pl.col("mean_center")).abs(),
     )
-    empirical_centers = grouped.agg(aggregation.name)
-    return {
-        **{
-            f"{aggregation.name}_log2_empirical_{species}": float(value)
-            for species, value in empirical_centers.items()
-        },
-        f"{aggregation.name}_abs_epsilon_precision_global": aggregation.absolute(precision),
-        f"{aggregation.name}_abs_epsilon_precision_eq_species": float(per_species.mean()),
-        **{
-            f"{aggregation.name}_abs_epsilon_precision_{species}": float(value)
-            for species, value in per_species.items()
-        },
-    }
+    per_species = values.group_by("species").agg(
+        pl.col("epsilon").abs().median().alias("median_abs_epsilon"),
+        pl.col("epsilon").abs().mean().alias("mean_abs_epsilon"),
+        pl.col("median_center").first(),
+        pl.col("mean_center").first(),
+        pl.col("median_precision").median(),
+        pl.col("mean_precision").mean(),
+    )
+    global_metrics = values.select(
+        pl.col("epsilon").abs().median().alias("median_abs_epsilon_global"),
+        pl.col("epsilon").abs().mean().alias("mean_abs_epsilon_global"),
+        pl.col("median_precision").median().alias("median_abs_epsilon_precision_global"),
+        pl.col("mean_precision").mean().alias("mean_abs_epsilon_precision_global"),
+    ).row(0, named=True)
+    equal_species = per_species.select(
+        pl.col("median_abs_epsilon").mean().alias("median_abs_epsilon_eq_species"),
+        pl.col("mean_abs_epsilon").mean().alias("mean_abs_epsilon_eq_species"),
+        pl.col("median_precision").mean().alias("median_abs_epsilon_precision_eq_species"),
+        pl.col("mean_precision").mean().alias("mean_abs_epsilon_precision_eq_species"),
+    ).row(0, named=True)
+    metrics = {name: _as_float(value) for name, value in global_metrics.items()}
+    metrics.update({name: _as_float(value) for name, value in equal_species.items()})
+    for row in per_species.iter_rows(named=True):
+        species = row["species"]
+        if species is None:
+            continue
+        for name in ("median", "mean"):
+            metrics[f"{name}_abs_epsilon_{species}"] = _as_float(row[f"{name}_abs_epsilon"])
+            metrics[f"{name}_log2_empirical_{species}"] = _as_float(row[f"{name}_center"])
+            metrics[f"{name}_abs_epsilon_precision_{species}"] = _as_float(row[f"{name}_precision"])
+    return metrics
+
+
+def _as_float(value: object) -> float:
+    if value is None:
+        return np.nan
+    if not isinstance(value, (int, float)):
+        raise TypeError(f"species metric is not numeric: {value!r}")
+    return float(value)
 
 
 def _cv_metrics(selected: pd.DataFrame) -> dict[str, float]:

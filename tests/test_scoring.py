@@ -22,10 +22,6 @@ from apb_proteobench.workflow import (
 from conftest import matrix_values, module_settings, quantitative_input
 
 GOLDEN = Path(__file__).parent / "data" / "small_legacy_intermediate.txt"
-# Fingerprint of the rendered intermediate. Regenerated 2026-09-08 when calculations
-# stopped narrowing to float32: the golden CSV above still matches within 7.1e-08,
-# which is float32 noise, so only the bit-exact digest moved.
-GOLDEN_HASH = "35f49e1b9efe160c5afeca4ca2fdaecae3e65a8e"
 
 
 def test_hye_intermediate_matches_legacy_golden() -> None:
@@ -37,7 +33,6 @@ def test_hye_intermediate_matches_legacy_golden() -> None:
         pd.read_csv(GOLDEN, index_col=0),
         check_dtype=False,
     )
-    assert result.intermediate_hash == GOLDEN_HASH
     assert result.varm["included"].tolist() == [True, True, True, False, False, False]
     assert result.protein_mapping.accession_mapper.entries == 38_233
     assert result.protein_mapping.accession_mapper.sha256 == (
@@ -55,6 +50,23 @@ def test_hy_uses_the_same_configuration_driven_calculation() -> None:
 
     assert set(result.diagnostics.legacy["species"]) == {"HUMAN", "YEAST"}
     assert result.scores.nr_feature == 3
+
+
+def test_scoring_does_not_render_the_intermediate_as_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def refuse_text_rendering(_frame: pd.DataFrame, /, **_kwargs: object) -> str:
+        raise AssertionError("scoring rendered the intermediate as text")
+
+    monkeypatch.setattr(pd.DataFrame, "to_string", refuse_text_rendering)
+    result = analyze_level(
+        quantitative_input(),
+        module_settings(),
+        MixedSpeciesDiagnostics(),
+        ProteoBenchCompatibleScoring(),
+    )
+    assert result.scores.nr_feature == 3
+    assert "intermediate_hash" not in result.scores.model_dump()
 
 
 def test_single_cell_hy_module_matches_hand_computed_ratios() -> None:
@@ -112,7 +124,7 @@ def test_dense_and_sparse_diagnostics_are_equal() -> None:
 
 def test_score_names_cutoffs_and_roc_edge_cases() -> None:
     result = MixedSpeciesDiagnostics().diagnose(quantitative_input(), module_settings())
-    scores = build_scores(result.legacy, result.intermediate_hash, ScoreConfig())
+    scores = build_scores(result.legacy, ScoreConfig())
     tied = pd.DataFrame(
         {
             "species": ["HUMAN", "HUMAN", "YEAST", "YEAST"],

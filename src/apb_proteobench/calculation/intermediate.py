@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass
 from typing import cast
 
 import numpy as np
 import pandas as pd
+import polars as pl
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
 
@@ -72,7 +72,6 @@ class IntermediateResult:
 
     varm: pd.DataFrame
     legacy: pd.DataFrame
-    intermediate_hash: str
     protein_mapping: ProteinMappingProvenance
 
 
@@ -252,11 +251,9 @@ def compute_intermediate(
             level=level,
         )
     )
-    digest = hashlib.sha1(legacy.to_string().encode("utf-8")).hexdigest()
     return IntermediateResult(
         varm=varm,
         legacy=legacy,
-        intermediate_hash=digest,
         protein_mapping=ProteinMappingProvenance(
             species_mapper=dict(module_settings.species_mapper),
             accession_mapper=AccessionMappingProvenance(
@@ -559,13 +556,19 @@ def _empirical_centers(
 ) -> dict[str, NDArray[np.float64]]:
     median = np.full(len(fold_change), np.nan, dtype=np.float64)
     mean = np.full(len(fold_change), np.nan, dtype=np.float64)
-    frame = pd.DataFrame(
-        {"fold_change": fold_change[included], "species": species[included]},
-        index=np.flatnonzero(included),
-    )
-    if not frame.empty:
-        median[frame.index] = frame.groupby("species")["fold_change"].transform("median")
-        mean[frame.index] = frame.groupby("species")["fold_change"].transform("mean")
+    if np.any(included):
+        frame = pl.DataFrame(
+            {
+                "fold_change": fold_change[included],
+                "species": pl.Series(species[included].tolist(), dtype=pl.String),
+            }
+        ).with_columns(pl.col("fold_change").fill_nan(None))
+        centers = frame.select(
+            pl.col("fold_change").median().over("species").alias("median"),
+            pl.col("fold_change").mean().over("species").alias("mean"),
+        )
+        median[included] = centers.get_column("median").to_numpy()
+        mean[included] = centers.get_column("mean").to_numpy()
     return {"median": median, "mean": mean}
 
 

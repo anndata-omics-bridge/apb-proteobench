@@ -85,6 +85,7 @@ def test_cli_run_can_convert_only_ion_to_h5ad(tmp_path: Path) -> None:
     data, parameters, fasta, module = _write_benchmark_diann_input(tmp_path)
     target = tmp_path / "stored.h5ad"
     result_performance = tmp_path / "pmultiqc" / "result_performance.csv"
+    timings_dir = tmp_path / "timings"
 
     status = app(
         [
@@ -104,6 +105,8 @@ def test_cli_run_can_convert_only_ion_to_h5ad(tmp_path: Path) -> None:
             str(target),
             "--result-performance",
             str(result_performance),
+            "--timings-dir",
+            str(timings_dir),
         ],
         exit_on_error=False,
         result_action="return_value",
@@ -112,6 +115,65 @@ def test_cli_run_can_convert_only_ion_to_h5ad(tmp_path: Path) -> None:
     assert status == 0
     assert list(read_parsed_levels(target).levels) == ["ion"]
     assert result_performance.is_file()
+    expected = {
+        "apb2.convert.timings.json": ("apb2", "convert", ["compile", "read", "parse"]),
+        "apb-fasta.verify-peptides.timings.json": (
+            "apb-fasta",
+            "verify-peptides",
+            ["load_database", "verify_peptides"],
+        ),
+        "apb-proteobench.benchmark.timings.json": (
+            "apb-proteobench",
+            "benchmark",
+            ["load_module", "analyze", "write", "export"],
+        ),
+    }
+    assert {path.name for path in timings_dir.iterdir()} == set(expected)
+    for name, (tool, operation, phases) in expected.items():
+        document = json.loads((timings_dir / name).read_text(encoding="utf-8"))
+        assert document["format"] == "apb-tool-timings"
+        assert document["format_version"] == 1
+        assert document["tool"] == tool
+        assert document["operation"] == operation
+        assert [phase["name"] for phase in document["phases"]] == phases
+        assert all(phase["seconds"] >= 0 for phase in document["phases"])
+    conversion = json.loads((timings_dir / "apb2.convert.timings.json").read_text())
+    assert [level["level"] for level in conversion["levels"]] == ["ion"]
+
+
+def test_cli_run_refuses_existing_timing_file_before_scoring(tmp_path: Path) -> None:
+    data, parameters, fasta, module = _write_benchmark_diann_input(tmp_path)
+    timings_dir = tmp_path / "timings"
+    timings_dir.mkdir()
+    (timings_dir / "apb2.convert.timings.json").write_text("old", encoding="utf-8")
+    target = tmp_path / "stored.h5ad"
+
+    status = app(
+        [
+            "run",
+            str(data),
+            str(fasta),
+            "--params",
+            str(parameters),
+            "--module",
+            str(module),
+            "--software",
+            "diann",
+            "--level",
+            "ion",
+            "--x",
+            "--output",
+            str(target),
+            "--timings-dir",
+            str(timings_dir),
+        ],
+        exit_on_error=False,
+        result_action="return_value",
+    )
+
+    assert status == 1
+    assert not target.exists()
+    assert (timings_dir / "apb2.convert.timings.json").read_text() == "old"
 
 
 @pytest.mark.parametrize("suffix", [".h5mu", ".parquet", ".duckdb"])

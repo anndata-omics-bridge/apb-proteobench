@@ -7,8 +7,10 @@ import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import Annotated, Literal
 
+import numpy as np
 from apb2.api import (
     ParseRuleCompiler,
     QuantificationLevel,
@@ -24,14 +26,21 @@ from protein_fasta.frame import ProteinDatabase, refseq, uniprotkb
 from pydantic import ValidationError
 
 from apb_proteobench.api import ProteoBenchAnalysisResult, ProteoBenchAnalyzer
+from apb_proteobench.calculation.intermediate import align_runs
+from apb_proteobench.calculation.metrics import PROTEOBENCH_SOURCE_REVISION
 from apb_proteobench.configuration.load import load_module
 from apb_proteobench.integration import (
     ALL_ABUNDANCE_LAYERS,
     PRIMARY_LAYER,
     LayerSelection,
     NamedAbundanceLayer,
+    extract_layer,
 )
-from apb_proteobench.io.result_performance import write_result_performance_bundle
+from apb_proteobench.io.result_performance import (
+    SubmissionContent,
+    write_result_performance_bundle,
+)
+from apb_proteobench.io.tool_timings import write_tool_timings
 from apb_proteobench.presentation import report_score
 
 app = App(
@@ -59,11 +68,7 @@ class RunCliOptions:
     ] = None
     software: Annotated[
         str | None,
-        Parameter(help="Vendor software selecting APB2 parsing rules"),
-    ] = None
-    params_software: Annotated[
-        str | None,
-        Parameter(help="Software parser override for the parameter file"),
+        Parameter(help="Parameter-file software; restrict result recognition to plausible vendors"),
     ] = None
     backend: Annotated[
         Literal["auto", "ahocorapy", "ahocorasick_rs"],
@@ -96,6 +101,10 @@ class RunCliOptions:
     result_performance: Annotated[
         Path | None,
         Parameter(help="Write result_performance.csv and sibling ProteoBot JSON"),
+    ] = None
+    timings_dir: Annotated[
+        Path | None,
+        Parameter(help="Write separate APB2, FASTA, and ProteoBench timing JSON files"),
     ] = None
     strict: Annotated[
         bool,
@@ -181,6 +190,7 @@ def run(
     and benchmarking when the scored level must be derived from a lower one. Use
     --level LEVEL to convert one quantification level. Scoring includes every declared
     abundance layer by default; use --x for only the APB primary/X layer.
+    --timings-dir records internal operation timings outside the scored result.
     """
     if options.params is None:
         logger.error("pass --params PATH for the vendor search-parameter file")
@@ -202,18 +212,28 @@ def run(
         return 2
     try:
         _require_new_target(data, options.output)
+        timing_targets = _run_timing_targets(options.timings_dir)
+        _require_new_timing_targets(timing_targets)
         if not fasta_paths:
             raise ValueError("at least one FASTA path is required")
+        started = perf_counter()
         compiler = ParseRuleCompiler(
             data,
             options.params,
             requested_levels=None if options.level is None else (options.level,),
             checks="strict" if options.strict else "standard",
             software=options.software,
-            parameters_software=options.params_software,
         )
-        parsed = compiler.compile().parse()
+        parser = compiler.compile()
+        compile_seconds = perf_counter() - started
+        started = perf_counter()
+        parsed, level_timings = parser.parse_with_timings()
+        read_seconds = sum(timing.read_seconds for timing in level_timings)
+        parse_seconds = max(0.0, perf_counter() - started - read_seconds)
+        started = perf_counter()
         proteins = ProteinDatabase(uniprotkb, refseq).parse(fasta_paths)
+        fasta_load_seconds = perf_counter() - started
+        started = perf_counter()
         verified = FastaAnnotator(
             proteins,
             parameters=FastaAnnotationParameters(
@@ -222,14 +242,47 @@ def run(
                 il_equivalent=options.il_equivalent,
             ),
         ).verify_peptides(parsed)
+        fasta_verify_seconds = perf_counter() - started
+        started = perf_counter()
+        loaded_module = load_module(options.module)
+        module_load_seconds = perf_counter() - started
+        started = perf_counter()
         result = ProteoBenchAnalyzer(
-            load_module(options.module),
+            loaded_module,
             selection=selection,
         ).analyze(verified.parsed)
+        analysis_seconds = perf_counter() - started
+        started = perf_counter()
         options.output.parent.mkdir(parents=True, exist_ok=True)
         write_parsed_levels(result.parsed, options.output)
+        write_seconds = perf_counter() - started
         search_parameters = compiler.parameters.model_dump(mode="json")
+        started = perf_counter()
         _export_result_performance(result, search_parameters, options.result_performance)
+        export_seconds = perf_counter() - started
+        _write_run_timings(
+            timing_targets,
+            {
+                "compile": compile_seconds,
+                "read": read_seconds,
+                "parse": parse_seconds,
+                "load_database": fasta_load_seconds,
+                "verify_peptides": fasta_verify_seconds,
+                "load_module": module_load_seconds,
+                "analyze": analysis_seconds,
+                "write": write_seconds,
+                "export": export_seconds,
+            },
+            tuple(
+                {
+                    "level": timing.level,
+                    "read_seconds": timing.read_seconds,
+                    "parse_seconds": timing.parse_seconds,
+                }
+                for timing in level_timings
+            ),
+            exported=options.result_performance is not None,
+        )
     except (OSError, ValueError, ValidationError) as error:
         logger.error(str(error))
         return 1
@@ -243,6 +296,59 @@ def run(
         verbose=verbose,
     )
     return 0
+
+
+def _run_timing_targets(directory: Path | None) -> dict[str, Path]:
+    """Name each optional timing artifact of the integrated run."""
+    if directory is None:
+        return {}
+    return {
+        "apb2": directory / "apb2.convert.timings.json",
+        "fasta": directory / "apb-fasta.verify-peptides.timings.json",
+        "proteobench": directory / "apb-proteobench.benchmark.timings.json",
+    }
+
+
+def _require_new_timing_targets(targets: Mapping[str, Path]) -> None:
+    """Refuse a timing collision before creating a scientific result."""
+    for target in targets.values():
+        if target.exists():
+            raise ValueError(f"timing output already exists: {target}")
+
+
+def _write_run_timings(
+    targets: Mapping[str, Path],
+    seconds: Mapping[str, float],
+    levels: tuple[dict[str, str | float], ...],
+    /,
+    *,
+    exported: bool,
+) -> None:
+    """Publish one independent timing document for each integrated operation."""
+    if not targets:
+        return
+    write_tool_timings(
+        targets["apb2"],
+        tool="apb2",
+        operation="convert",
+        phases=tuple((name, seconds[name]) for name in ("compile", "read", "parse")),
+        levels=levels,
+    )
+    write_tool_timings(
+        targets["fasta"],
+        tool="apb-fasta",
+        operation="verify-peptides",
+        phases=tuple((name, seconds[name]) for name in ("load_database", "verify_peptides")),
+    )
+    names = ["load_module", "analyze", "write"]
+    if exported:
+        names.append("export")
+    write_tool_timings(
+        targets["proteobench"],
+        tool="apb-proteobench",
+        operation="benchmark",
+        phases=tuple((name, seconds[name]) for name in names),
+    )
 
 
 def _report_vendor_benchmark(
@@ -311,10 +417,28 @@ def _export_result_performance(
             f"got {selected.level_name!r}"
         )
     datapoint = _proteobot_datapoint(result, search_parameters, selected.layer_name)
+    extracted = extract_layer(result.parsed, result.configuration, selected.layer_name)
+    source = extracted.calculation
+    if not isinstance(source.matrix, np.ndarray):
+        raise TypeError("APB2 layer extraction did not produce a dense matrix")
+    design = align_runs(source.observations, result.configuration)
+    settings = result.configuration.model_dump(mode="json", exclude={"samples"})
+    settings["source_revision"] = PROTEOBENCH_SOURCE_REVISION
+    settings["diagnostic_method"] = selected.analysis.diagnostic_method
+    settings["scoring_method"] = selected.analysis.scoring_method
     written = write_result_performance_bundle(
         selected.analysis.diagnostics.legacy,
         datapoint,
         target,
+        content=SubmissionContent(
+            matrix=source.matrix,
+            feature_ids=source.feature_ids,
+            reported_proteins=source.reported_proteins,
+            raw_files=design.raw_files,
+            conditions=tuple(design.conditions),
+            settings=settings,
+            mapper_sha256=selected.analysis.diagnostics.protein_mapping.accession_mapper.sha256,
+        ),
     )
     logger.info("wrote pMultiQC input {}", written.csv)
     logger.info("wrote ProteoBot datapoint {}", written.proteobot_json)
@@ -331,10 +455,8 @@ def _proteobot_datapoint(
     if not isinstance(score_document, dict):
         raise TypeError("ProteoBench scores did not serialize to a JSON object")
     parameters = search_parameters
-    intermediate_hash = selected.analysis.scores.intermediate_hash
     software_name = _text_parameter(parameters, "software_name") or "unknown"
     datapoint: dict[str, object] = {
-        "id": f"{software_name.replace(' ', '_')}_{intermediate_hash[:12]}",
         "software_name": software_name,
         "software_version": _text_parameter(parameters, "software_version") or "",
         "search_engine": _text_parameter(parameters, "search_engine"),
@@ -379,9 +501,7 @@ def _proteobot_datapoint(
     ):
         if name in parameters:
             datapoint[name] = _scalar_parameter(parameters, name)
-    datapoint["submission_comments"] = (
-        f"\n\nDataset URL: https://proteobench.cubimed.rub.de/datasets/{intermediate_hash}/"
-    )
+    datapoint["submission_comments"] = ""
     return datapoint
 
 

@@ -82,7 +82,6 @@ class ProteoBenchCompatibleScoring:
         general = configuration.general
         return build_scores(
             diagnostics.legacy,
-            diagnostics.intermediate_hash,
             ScoreConfig(
                 default_cutoff=general.default_cutoff_min_feature,
                 max_nr_observed=general.max_nr_observed,

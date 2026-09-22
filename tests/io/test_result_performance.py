@@ -5,13 +5,16 @@ from __future__ import annotations
 import errno
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
 from typing import TextIO
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from apb_proteobench.io.result_performance import (
+    SubmissionContent,
     write_result_performance,
     write_result_performance_bundle,
 )
@@ -23,9 +26,20 @@ def _ion_intermediate() -> pd.DataFrame:
     return pd.read_csv(GOLDEN, index_col=0)
 
 
-def _proteobot_datapoint(intermediate_hash: str = "a" * 40) -> dict[str, object]:
+def _submission_content() -> SubmissionContent:
+    return SubmissionContent(
+        matrix=np.array([[1.0, np.nan], [2.0, -0.0]]),
+        feature_ids=pd.Index(["B/2", "A/2"]),
+        reported_proteins=pd.Series(["P2_YEAST", "P1_HUMAN"]),
+        raw_files=("run_b", "run_a"),
+        conditions=("B", "A"),
+        settings={"species_mapper": {"_HUMAN": "HUMAN", "_YEAST": "YEAST"}},
+        mapper_sha256="mapper-v1",
+    )
+
+
+def _proteobot_datapoint() -> dict[str, object]:
     return {
-        "id": "Synthetic_aaaaaaaaaaaa",
         "software_name": "Synthetic",
         "software_version": "1.0",
         "search_engine": None,
@@ -41,7 +55,6 @@ def _proteobot_datapoint(intermediate_hash: str = "a" * 40) -> dict[str, object]
         "min_peptide_length": 7,
         "max_peptide_length": None,
         "is_temporary": False,
-        "intermediate_hash": intermediate_hash,
         "results": {"1": {"nr_feature": 3}},
         "median_abs_epsilon_global": 0.1,
         "mean_abs_epsilon_global": 0.2,
@@ -133,22 +146,126 @@ def test_write_result_performance_removes_failed_temporary_file(
 def test_write_result_performance_bundle_writes_proteobot_hash_json(tmp_path: Path) -> None:
     target = tmp_path / "bundle" / "result_performance.csv"
     datapoint = _proteobot_datapoint()
+    content = _submission_content()
 
-    written = write_result_performance_bundle(_ion_intermediate(), datapoint, target)
+    written = write_result_performance_bundle(
+        _ion_intermediate(), datapoint, target, content=content
+    )
 
     assert written.csv == target
-    assert written.proteobot_json == target.with_name(f"{'a' * 40}.json")
-    assert json.loads(written.proteobot_json.read_text(encoding="utf-8")) == datapoint
+    digest = written.proteobot_json.stem
+    assert written.proteobot_json == target.with_name(f"{digest}.json")
+    assert digest == "e13b3ab7af6f9c75d14cb20f2142c5e461e5f4c0e4b055f11e421acc037f2c1a"
+    assert json.loads(written.proteobot_json.read_text(encoding="utf-8")) == {
+        **datapoint,
+        "id": f"Synthetic_{digest[:12]}",
+        "intermediate_hash": digest,
+        "submission_comments": (
+            f"\n\nDataset URL: https://proteobench.cubimed.rub.de/datasets/{digest}/"
+        ),
+    }
     assert list(target.parent.glob(".*.tmp")) == []
+
+
+def test_content_hash_follows_values_and_identities_not_axis_order(tmp_path: Path) -> None:
+    content = _submission_content()
+    reordered = SubmissionContent(
+        matrix=content.matrix[[1, 0]][:, [1, 0]],
+        feature_ids=pd.Index(list(reversed(content.feature_ids.tolist()))),
+        reported_proteins=content.reported_proteins.iloc[np.array([1, 0])].reset_index(drop=True),
+        raw_files=("run_a", "run_b"),
+        conditions=("A", "B"),
+        settings=content.settings,
+        mapper_sha256=content.mapper_sha256,
+    )
+    changed_values = SubmissionContent(
+        matrix=np.array([[1.0, np.nan], [2.0, 0.5]]),
+        feature_ids=content.feature_ids,
+        reported_proteins=content.reported_proteins,
+        raw_files=content.raw_files,
+        conditions=content.conditions,
+        settings=content.settings,
+        mapper_sha256=content.mapper_sha256,
+    )
+
+    hashes = [
+        write_result_performance_bundle(
+            _ion_intermediate(),
+            _proteobot_datapoint(),
+            tmp_path / str(index) / "result_performance.csv",
+            content=item,
+        ).proteobot_json.stem
+        for index, item in enumerate((content, reordered, changed_values))
+    ]
+    assert hashes[0] == hashes[1]
+    assert hashes[0] != hashes[2]
+
+
+def test_content_hash_changes_with_scoring_inputs(tmp_path: Path) -> None:
+    content = _submission_content()
+    changed_proteins = replace(content, reported_proteins=pd.Series(["P2_HUMAN", "P1_HUMAN"]))
+    changed_conditions = replace(content, conditions=("A", "A"))
+    changed_settings = replace(content, settings={"species_mapper": {"_HUMAN": "HUMAN"}})
+    changed_mapper = replace(content, mapper_sha256="mapper-v2")
+    inputs = (content, changed_proteins, changed_conditions, changed_settings, changed_mapper)
+    hashes = {
+        write_result_performance_bundle(
+            _ion_intermediate(),
+            _proteobot_datapoint(),
+            tmp_path / str(index) / "result_performance.csv",
+            content=item,
+        ).proteobot_json.stem
+        for index, item in enumerate(inputs)
+    }
+
+    assert len(hashes) == len(inputs)
+
+
+def test_content_hash_normalizes_float_precision_nan_and_signed_zero(tmp_path: Path) -> None:
+    content = _submission_content()
+    float32 = replace(content, matrix=content.matrix.astype(np.float32))
+    positive_zero = replace(content, matrix=np.array([[1.0, np.nan], [2.0, 0.0]]))
+    hashes = [
+        write_result_performance_bundle(
+            _ion_intermediate(),
+            _proteobot_datapoint(),
+            tmp_path / str(index) / "result_performance.csv",
+            content=item,
+        ).proteobot_json.stem
+        for index, item in enumerate((content, float32, positive_zero))
+    ]
+
+    assert len(set(hashes)) == 1
+
+
+def test_bundle_rejects_caller_owned_hash(tmp_path: Path) -> None:
+    target = tmp_path / "result_performance.csv"
+    datapoint = {**_proteobot_datapoint(), "intermediate_hash": "a" * 40}
+
+    with pytest.raises(ValueError, match="identity fields belong"):
+        write_result_performance_bundle(
+            _ion_intermediate(), datapoint, target, content=_submission_content()
+        )
+
+    assert not target.exists()
 
 
 def test_write_result_performance_bundle_refuses_either_existing_output(tmp_path: Path) -> None:
     target = tmp_path / "result_performance.csv"
-    json_target = tmp_path / f"{'a' * 40}.json"
+    content = _submission_content()
+    seed = write_result_performance_bundle(
+        _ion_intermediate(),
+        _proteobot_datapoint(),
+        tmp_path / "seed" / "result_performance.csv",
+        content=content,
+    )
+    json_target = tmp_path / seed.proteobot_json.name
     json_target.write_text("owned by user\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match="already exists"):
-        write_result_performance_bundle(_ion_intermediate(), _proteobot_datapoint(), target)
+        write_result_performance_bundle(
+            _ion_intermediate(), _proteobot_datapoint(), target, content=content
+        )
 
     assert not target.exists()
     assert json_target.read_text(encoding="utf-8") == "owned by user\n"
@@ -169,11 +286,19 @@ def test_write_result_performance_bundle_rolls_back_partial_publication(
             raise FileExistsError(errno.EEXIST, "simulated race", destination)
         real_link(source, destination)
 
+    content = _submission_content()
+    seed = write_result_performance_bundle(
+        _ion_intermediate(),
+        _proteobot_datapoint(),
+        tmp_path / "seed" / "result_performance.csv",
+        content=content,
+    )
     monkeypatch.setattr(os, "link", fail_second_link)
-
     with pytest.raises(ValueError, match="already exists"):
-        write_result_performance_bundle(_ion_intermediate(), _proteobot_datapoint(), target)
+        write_result_performance_bundle(
+            _ion_intermediate(), _proteobot_datapoint(), target, content=content
+        )
 
     assert not target.exists()
-    assert not target.with_name(f"{'a' * 40}.json").exists()
+    assert not target.with_name(seed.proteobot_json.name).exists()
     assert list(tmp_path.glob(".*.tmp")) == []
