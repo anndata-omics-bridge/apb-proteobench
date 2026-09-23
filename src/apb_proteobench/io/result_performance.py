@@ -219,7 +219,7 @@ def _complete_datapoint(
     comments = datapoint.get("submission_comments", "")
     if not isinstance(comments, str):
         raise ValueError("ProteoBot submission_comments must be a string")
-    digest = _content_hash(content)
+    digest = content_hash(content)
     return {
         **datapoint,
         "id": f"{software_name.replace(' ', '_')}_{digest[:12]}",
@@ -230,7 +230,7 @@ def _complete_datapoint(
     }
 
 
-def _content_hash(content: SubmissionContent) -> str:
+def content_hash(content: SubmissionContent) -> str:
     """Hash one canonical, order-independent scientific submission input."""
     matrix = content.matrix
     rows, columns = matrix.shape

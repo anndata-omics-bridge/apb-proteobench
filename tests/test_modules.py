@@ -59,6 +59,12 @@ def test_every_upstream_module_document_is_packaged_and_pinned() -> None:
     assert hashes == EXPECTED_PACKAGED_MODULE_HASHES
 
 
+def test_packaged_ratios_preserve_plot_colors() -> None:
+    ratios = load_packaged_module("dda_qexactive").settings.species_expected_ratio
+
+    assert ratios["YEAST"].color == "#88ccef"
+
+
 @pytest.mark.parametrize(
     "name",
     ["dia_plasma", "denovo_dda_hcd", "entrapment_dia_astral"],

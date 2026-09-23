@@ -26,6 +26,7 @@ class ExpectedRatio(_SettingsModel):
     """Expected abundance ratio for one species."""
 
     a_vs_b: float = Field(alias="A_vs_B", gt=0)
+    color: str | None = None
 
 
 class ModuleGeneral(_SettingsModel):

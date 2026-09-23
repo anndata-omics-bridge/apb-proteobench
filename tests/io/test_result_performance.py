@@ -15,6 +15,7 @@ import pytest
 
 from apb_proteobench.io.result_performance import (
     SubmissionContent,
+    content_hash,
     write_result_performance,
     write_result_performance_bundle,
 )
@@ -36,6 +37,11 @@ def _submission_content() -> SubmissionContent:
         settings={"species_mapper": {"_HUMAN": "HUMAN", "_YEAST": "YEAST"}},
         mapper_sha256="mapper-v1",
     )
+
+
+def test_public_content_hash_is_stable() -> None:
+    assert content_hash(_submission_content()) == content_hash(_submission_content())
+    assert len(content_hash(_submission_content())) == 64
 
 
 def _proteobot_datapoint() -> dict[str, object]:
