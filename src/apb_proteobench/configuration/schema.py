@@ -17,7 +17,7 @@ class SampleSettings(_SettingsModel):
     """One run in a ProteoBench experiment design."""
 
     raw_file: str = Field(min_length=1)
-    raw_file_alias: str | None = None
+    raw_file_aliases: list[str] = Field(default_factory=list[str])
     sample_name: str = Field(min_length=1)
     condition: str = Field(min_length=1)
 
@@ -44,8 +44,43 @@ class ModuleGeneral(_SettingsModel):
         return self
 
 
+class SpeciesSettings(_SettingsModel):
+    """One scored species: its SDRF organism, FASTA header suffix, and plot colour."""
+
+    organism: str = Field(min_length=1)
+    suffix: str = Field(min_length=1)
+    color: str | None = None
+
+
+class ModuleDocument(_SettingsModel):
+    """The authored module TOML: scoring settings the module SDRF cannot hold.
+
+    ``sdrf`` names the module SDRF relative to the TOML's directory. ``run_aliases`` maps an
+    SDRF ``comment[data file]`` value to further run names that vendor tables report.
+    """
+
+    sdrf: str = Field(min_length=1)
+    species: dict[str, SpeciesSettings] = Field(min_length=1)
+    run_aliases: dict[str, list[str]] = Field(default_factory=dict[str, list[str]])
+    general: ModuleGeneral
+
+    @model_validator(mode="after")
+    def _validate_species(self) -> ModuleDocument:
+        organisms = [species.organism.lower() for species in self.species.values()]
+        if len(organisms) != len(set(organisms)):
+            raise ValueError("[species] organisms must be unique")
+        suffixes = [species.suffix for species in self.species.values()]
+        if len(suffixes) != len(set(suffixes)):
+            raise ValueError("[species] suffixes must be unique")
+        return self
+
+
 class ModuleSettings(_SettingsModel):
-    """ProteoBench experiment design and HYE scoring configuration."""
+    """Resolved experiment design and HYE scoring configuration.
+
+    Loading composes it from a ``ModuleDocument`` and the module SDRF; it is also the
+    normalized configuration recorded in result provenance.
+    """
 
     species_expected_ratio: dict[str, ExpectedRatio]
     species_mapper: dict[str, str]

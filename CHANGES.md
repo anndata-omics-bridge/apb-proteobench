@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Every quantitative module's scores now include ProteoBench's plasma metrics, ported from `QuantDatapointPYE` at v0.18.0 with unchanged key names and formulas: spike-in error, per-species and spike-in counts, HUMAN dynamic range and HUMAN error per cutoff, plus four top-level projections. Spike-ins are all species other than HUMAN. Compatibility version moves to 0.18.0 (`cd2a8f00`), whose HYE scoring equals 0.17.0; scoring method `proteobench-compatible` becomes version 2. `ScoreConfig` requires the module `species`. Across 198 corpus intermediates the new metrics equal upstream within 3e-15 relative.
+
+- `dia_plasma` is now a supported module: a TOML plus SDRF for the 12 timsTOF runs of PYE9 (Distler et al. 2025), `max_nr_observed = 12`, the HYE FASTA, and the Custom-format run names as aliases.
+
+- `benchmark` and `run --module` accept a packaged module name such as `dda_qexactive`; a value ending in `.toml` is still read as a module TOML path.
+
+- **Breaking:** a module is now a TOML plus the SDRF-Proteomics table it names (`sdrf = "…"`). The SDRF owns the sample design and species quantities; expected A/B ratios are computed from `characteristics[spiked compound]` quantities. The TOML replaces `species_expected_ratio`/`species_mapper` with `[species.<NAME>]` (`organism`, `suffix`, `color`) and `[[samples]]` with SDRF rows plus `[run_aliases]`. `SampleSettings.raw_file_alias` becomes the list `raw_file_aliases`. Provenance `source` gains `sdrf` (name, checksum) and format `proteobench-module-toml-sdrf`. Resolved settings, matching and scores of all eight packaged modules are unchanged, except `dda_peptidoform`, whose `raw_file` is now the QExactive raw-file name; its former `abundance_*` identifiers remain aliases. sdrf-pipelines joins the dev group to validate the packaged SDRFs.
+
 - **Breaking:** ProteoBot export now names its JSON and dataset with a versioned SHA-256 content hash of the selected abundance layer and scoring inputs. Historical SHA-1 submissions are not matched by the new identity. Scoring no longer computes or persists an upload hash; the optional bundle writer owns it. Species mean and median reductions use Polars while condition reductions remain NumPy.
 
 - **Breaking:** `run` uses one `--software` parameter-grammar hint; removed `--params-software`. APB2 restricts result recognition to the hinted vendor and its declared quantification software (including FragPipe → DIA-NN), or recognizes all vendors when no hint is supplied. Scoring and compatibility exports are unchanged.

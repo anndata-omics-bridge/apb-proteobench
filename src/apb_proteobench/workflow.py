@@ -71,7 +71,7 @@ class MixedSpeciesDiagnostics:
 
 @dataclass(frozen=True, slots=True)
 class ProteoBenchCompatibleScoring:
-    """ProteoBench 0.17-compatible aggregate scoring."""
+    """ProteoBench 0.18-compatible aggregate scoring, plasma metrics included."""
 
     def score(
         self,
@@ -83,13 +83,14 @@ class ProteoBenchCompatibleScoring:
         return build_scores(
             diagnostics.legacy,
             ScoreConfig(
+                species=tuple(configuration.species_expected_ratio),
                 default_cutoff=general.default_cutoff_min_feature,
                 max_nr_observed=general.max_nr_observed,
             ),
         )
 
     def identity(self) -> dict[str, str]:
-        return {"name": "proteobench-compatible", "version": "1"}
+        return {"name": "proteobench-compatible", "version": "2"}
 
 
 @dataclass(frozen=True, slots=True)

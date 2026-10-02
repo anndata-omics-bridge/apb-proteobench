@@ -1,61 +1,34 @@
-[species_expected_ratio]
-[species_expected_ratio.YEAST]
-"A_vs_B" = 2.0
-"color" = "#88ccef"
+# Sample design, species quantities and run files live in the module SDRF.
+# This file holds the scoring settings the SDRF cannot express.
+sdrf = "dia_diapasef.sdrf.tsv"
 
-[species_expected_ratio.ECOLI]
-"A_vs_B" = 0.25
-"color" = "#cc6777"
+[species.YEAST]
+organism = "saccharomyces cerevisiae"
+suffix = "_YEAST"
+color = "#88ccef"
 
-[species_expected_ratio.HUMAN]
-"A_vs_B" = 1.0
-"color" = "#ddcc77"
+[species.ECOLI]
+organism = "escherichia coli"
+suffix = "_ECOLI"
+color = "#cc6777"
 
-[species_mapper]
-"_YEAST" = "YEAST"
-"_ECOLI" = "ECOLI"
-"_HUMAN" = "HUMAN"
+[species.HUMAN]
+organism = "homo sapiens"
+suffix = "_HUMAN"
+color = "#ddcc77"
 
 [general]
 "min_count_multispec" = 1
 "level" = "ion"
 
-[[samples]]
-raw_file = "ttSCP_diaPASEF_Condition_A_Sample_Alpha_01_11494"
-raw_file_alias = "LFQ_ttSCP_diaPASEF_Condition_A_Sample_Alpha_01"
-sample_name = "Condition_A_Sample_Alpha_01"
-condition = "A"
-
-[[samples]]
-raw_file = "ttSCP_diaPASEF_Condition_A_Sample_Alpha_02_11500"
-raw_file_alias = "LFQ_ttSCP_diaPASEF_Condition_A_Sample_Alpha_02"
-sample_name = "Condition_A_Sample_Alpha_02"
-condition = "A"
-
-[[samples]]
-raw_file = "ttSCP_diaPASEF_Condition_A_Sample_Alpha_03_11506"
-raw_file_alias = "LFQ_ttSCP_diaPASEF_Condition_A_Sample_Alpha_03"
-sample_name = "Condition_A_Sample_Alpha_03"
-condition = "A"
-
-[[samples]]
-raw_file = "ttSCP_diaPASEF_Condition_B_Sample_Alpha_01_11496"
-raw_file_alias = "LFQ_ttSCP_diaPASEF_Condition_B_Sample_Alpha_01"
-sample_name = "Condition_B_Sample_Alpha_01"
-condition = "B"
-
-[[samples]]
-raw_file = "ttSCP_diaPASEF_Condition_B_Sample_Alpha_02_11502"
-raw_file_alias = "LFQ_ttSCP_diaPASEF_Condition_B_Sample_Alpha_02"
-sample_name = "Condition_B_Sample_Alpha_02"
-condition = "B"
-
-[[samples]]
-raw_file = "ttSCP_diaPASEF_Condition_B_Sample_Alpha_03_11508"
-raw_file_alias = "LFQ_ttSCP_diaPASEF_Condition_B_Sample_Alpha_03"
-sample_name = "Condition_B_Sample_Alpha_03"
-condition = "B"
-
+# Further run names that vendor tables report, keyed by SDRF comment[data file].
+[run_aliases]
+"ttSCP_diaPASEF_Condition_A_Sample_Alpha_01_11494.d" = ["LFQ_ttSCP_diaPASEF_Condition_A_Sample_Alpha_01"]
+"ttSCP_diaPASEF_Condition_A_Sample_Alpha_02_11500.d" = ["LFQ_ttSCP_diaPASEF_Condition_A_Sample_Alpha_02"]
+"ttSCP_diaPASEF_Condition_A_Sample_Alpha_03_11506.d" = ["LFQ_ttSCP_diaPASEF_Condition_A_Sample_Alpha_03"]
+"ttSCP_diaPASEF_Condition_B_Sample_Alpha_01_11496.d" = ["LFQ_ttSCP_diaPASEF_Condition_B_Sample_Alpha_01"]
+"ttSCP_diaPASEF_Condition_B_Sample_Alpha_02_11502.d" = ["LFQ_ttSCP_diaPASEF_Condition_B_Sample_Alpha_02"]
+"ttSCP_diaPASEF_Condition_B_Sample_Alpha_03_11508.d" = ["LFQ_ttSCP_diaPASEF_Condition_B_Sample_Alpha_03"]
 
 [reference_database]
 # Reference protein database used to validate uploaded protein identifiers.

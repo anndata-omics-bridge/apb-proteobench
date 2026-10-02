@@ -1,61 +1,34 @@
-[species_expected_ratio]
-[species_expected_ratio.YEAST]
-"A_vs_B" = 2.0
-"color" = "#88ccef"
+# Sample design, species quantities and run files live in the module SDRF.
+# This file holds the scoring settings the SDRF cannot express.
+sdrf = "dda_peptidoform.sdrf.tsv"
 
-[species_expected_ratio.ECOLI]
-"A_vs_B" = 0.25
-"color" = "#cc6777"
+[species.YEAST]
+organism = "saccharomyces cerevisiae"
+suffix = "_YEAST"
+color = "#88ccef"
 
-[species_expected_ratio.HUMAN]
-"A_vs_B" = 1.0
-"color" = "#ddcc77"
+[species.ECOLI]
+organism = "escherichia coli"
+suffix = "_ECOLI"
+color = "#cc6777"
 
-[species_mapper]
-"_YEAST" = "YEAST"
-"_ECOLI" = "ECOLI"
-"_HUMAN" = "HUMAN"
+[species.HUMAN]
+organism = "homo sapiens"
+suffix = "_HUMAN"
+color = "#ddcc77"
 
 [general]
 "min_count_multispec" = 1
 "level" = "peptidoform"
 
-[[samples]]
-raw_file = "abundance_A_1"
-raw_file_alias = "A_1"
-sample_name = "Condition_A_Sample_Alpha_01"
-condition = "A"
-
-[[samples]]
-raw_file = "abundance_A_2"
-raw_file_alias = "A_2"
-sample_name = "Condition_A_Sample_Alpha_02"
-condition = "A"
-
-[[samples]]
-raw_file = "abundance_A_3"
-raw_file_alias = "A_3"
-sample_name = "Condition_A_Sample_Alpha_03"
-condition = "A"
-
-[[samples]]
-raw_file = "abundance_B_1"
-raw_file_alias = "B_1"
-sample_name = "Condition_B_Sample_Alpha_01"
-condition = "B"
-
-[[samples]]
-raw_file = "abundance_B_2"
-raw_file_alias = "B_2"
-sample_name = "Condition_B_Sample_Alpha_02"
-condition = "B"
-
-[[samples]]
-raw_file = "abundance_B_3"
-raw_file_alias = "B_3"
-sample_name = "Condition_B_Sample_Alpha_03"
-condition = "B"
-
+# Further run names that vendor tables report, keyed by SDRF comment[data file].
+[run_aliases]
+"LFQ_Orbitrap_DDA_Condition_A_Sample_Alpha_01.raw" = ["abundance_A_1", "A_1"]
+"LFQ_Orbitrap_DDA_Condition_A_Sample_Alpha_02.raw" = ["abundance_A_2", "A_2"]
+"LFQ_Orbitrap_DDA_Condition_A_Sample_Alpha_03.raw" = ["abundance_A_3", "A_3"]
+"LFQ_Orbitrap_DDA_Condition_B_Sample_Alpha_01.raw" = ["abundance_B_1", "B_1"]
+"LFQ_Orbitrap_DDA_Condition_B_Sample_Alpha_02.raw" = ["abundance_B_2", "B_2"]
+"LFQ_Orbitrap_DDA_Condition_B_Sample_Alpha_03.raw" = ["abundance_B_3", "B_3"]
 
 [reference_database]
 # Reference protein database used to validate uploaded protein identifiers.

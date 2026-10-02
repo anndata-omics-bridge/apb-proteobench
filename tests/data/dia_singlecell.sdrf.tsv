@@ -1,0 +1,7 @@
+source name	characteristics[spiked compound]	characteristics[spiked compound]	assay name	comment[data file]	factor value[spiked compound]
+Condition_A	CT=mixture;SP=Homo sapiens;QY=240 pg	CT=mixture;SP=Saccharomyces cerevisiae;QY=10 pg	Condition_A_Sample_1	HY_A_r1.raw	A
+Condition_A	CT=mixture;SP=Homo sapiens;QY=240 pg	CT=mixture;SP=Saccharomyces cerevisiae;QY=10 pg	Condition_A_Sample_2	HY_A_r2.raw	A
+Condition_A	CT=mixture;SP=Homo sapiens;QY=240 pg	CT=mixture;SP=Saccharomyces cerevisiae;QY=10 pg	Condition_A_Sample_3	HY_A_r3.raw	A
+Condition_B	CT=mixture;SP=Homo sapiens;QY=200 pg	CT=mixture;SP=Saccharomyces cerevisiae;QY=50 pg	Condition_B_Sample_1	HY_B_r1.raw	B
+Condition_B	CT=mixture;SP=Homo sapiens;QY=200 pg	CT=mixture;SP=Saccharomyces cerevisiae;QY=50 pg	Condition_B_Sample_2	HY_B_r2.raw	B
+Condition_B	CT=mixture;SP=Homo sapiens;QY=200 pg	CT=mixture;SP=Saccharomyces cerevisiae;QY=50 pg	Condition_B_Sample_3	HY_B_r3.raw	B

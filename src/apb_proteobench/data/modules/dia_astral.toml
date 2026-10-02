@@ -1,61 +1,34 @@
-[species_expected_ratio]
-[species_expected_ratio.YEAST]
-"A_vs_B" = 2.0
-"color" = "#88ccef"
+# Sample design, species quantities and run files live in the module SDRF.
+# This file holds the scoring settings the SDRF cannot express.
+sdrf = "dia_astral.sdrf.tsv"
 
-[species_expected_ratio.ECOLI]
-"A_vs_B" = 0.25
-"color" = "#cc6777"
+[species.YEAST]
+organism = "saccharomyces cerevisiae"
+suffix = "_YEAST"
+color = "#88ccef"
 
-[species_expected_ratio.HUMAN]
-"A_vs_B" = 1.0
-"color" = "#ddcc77"
+[species.ECOLI]
+organism = "escherichia coli"
+suffix = "_ECOLI"
+color = "#cc6777"
 
-[species_mapper]
-"_YEAST" = "YEAST"
-"_ECOLI" = "ECOLI"
-"_HUMAN" = "HUMAN"
+[species.HUMAN]
+organism = "homo sapiens"
+suffix = "_HUMAN"
+color = "#ddcc77"
 
 [general]
 "min_count_multispec" = 1
 "level" = "ion"
 
-[[samples]]
-raw_file = "LFQ_Astral_DIA_15min_50ng_Condition_A_REP1"
-raw_file_alias = "LFQ_Astral_DIA_15min_50ng_Condition_A_REP1_uncalibrated"
-sample_name = "Condition_A_Sample_Alpha_01"
-condition = "A"
-
-[[samples]]
-raw_file = "LFQ_Astral_DIA_15min_50ng_Condition_A_REP2"
-raw_file_alias = "LFQ_Astral_DIA_15min_50ng_Condition_A_REP2_uncalibrated"
-sample_name = "Condition_A_Sample_Alpha_02"
-condition = "A"
-
-[[samples]]
-raw_file = "LFQ_Astral_DIA_15min_50ng_Condition_A_REP3"
-raw_file_alias = "LFQ_Astral_DIA_15min_50ng_Condition_A_REP3_uncalibrated"
-sample_name = "Condition_A_Sample_Alpha_03"
-condition = "A"
-
-[[samples]]
-raw_file = "LFQ_Astral_DIA_15min_50ng_Condition_B_REP1"
-raw_file_alias = "LFQ_Astral_DIA_15min_50ng_Condition_B_REP1_uncalibrated"
-sample_name = "Condition_B_Sample_Alpha_01"
-condition = "B"
-
-[[samples]]
-raw_file = "LFQ_Astral_DIA_15min_50ng_Condition_B_REP2"
-raw_file_alias = "LFQ_Astral_DIA_15min_50ng_Condition_B_REP2_uncalibrated"
-sample_name = "Condition_B_Sample_Alpha_02"
-condition = "B"
-
-[[samples]]
-raw_file = "LFQ_Astral_DIA_15min_50ng_Condition_B_REP3"
-raw_file_alias = "LFQ_Astral_DIA_15min_50ng_Condition_B_REP3_uncalibrated"
-sample_name = "Condition_B_Sample_Alpha_03"
-condition = "B"
-
+# Further run names that vendor tables report, keyed by SDRF comment[data file].
+[run_aliases]
+"LFQ_Astral_DIA_15min_50ng_Condition_A_REP1.raw" = ["LFQ_Astral_DIA_15min_50ng_Condition_A_REP1_uncalibrated"]
+"LFQ_Astral_DIA_15min_50ng_Condition_A_REP2.raw" = ["LFQ_Astral_DIA_15min_50ng_Condition_A_REP2_uncalibrated"]
+"LFQ_Astral_DIA_15min_50ng_Condition_A_REP3.raw" = ["LFQ_Astral_DIA_15min_50ng_Condition_A_REP3_uncalibrated"]
+"LFQ_Astral_DIA_15min_50ng_Condition_B_REP1.raw" = ["LFQ_Astral_DIA_15min_50ng_Condition_B_REP1_uncalibrated"]
+"LFQ_Astral_DIA_15min_50ng_Condition_B_REP2.raw" = ["LFQ_Astral_DIA_15min_50ng_Condition_B_REP2_uncalibrated"]
+"LFQ_Astral_DIA_15min_50ng_Condition_B_REP3.raw" = ["LFQ_Astral_DIA_15min_50ng_Condition_B_REP3_uncalibrated"]
 
 [reference_database]
 # Reference protein database used to validate uploaded protein identifiers.

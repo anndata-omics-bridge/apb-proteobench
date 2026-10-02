@@ -158,9 +158,17 @@ def test_annotation_rejects_quantification_and_module_subsets(tmp_path: Path) ->
     with pytest.raises(ValueError, match="samples absent from quantification"):
         parser.parse(missing_quant)
 
+    sdrf = module.with_suffix(".sdrf.tsv")
+    missing_sdrf = tmp_path / "missing.sdrf.tsv"
+    missing_sdrf.write_text(
+        "".join(sdrf.read_text(encoding="utf-8").splitlines(keepends=True)[:-1]),
+        encoding="utf-8",
+    )
     missing_module = tmp_path / "missing.toml"
-    text = module.read_text(encoding="utf-8")
-    missing_module.write_text(text.rsplit("[[samples]]", maxsplit=1)[0], encoding="utf-8")
+    missing_module.write_text(
+        module.read_text(encoding="utf-8").replace(sdrf.name, missing_sdrf.name),
+        encoding="utf-8",
+    )
     with pytest.raises(ValueError, match="complete sample annotation required"):
         ProteoBenchAnnotationParser.from_path(missing_module).parse(parsed_result())
 
@@ -726,6 +734,28 @@ def test_cli_rejects_result_performance_for_non_ion_level(tmp_path: Path) -> Non
     assert not export.exists()
 
 
+def test_cli_benchmark_resolves_packaged_module_names(tmp_path: Path) -> None:
+    source = tmp_path / "source.parquet"
+    write_parsed_levels(parsed_result(), source)
+    messages: list[str] = []
+    sink = logger.add(messages.append, format="{message}")
+    try:
+        statuses = [
+            app(
+                ["benchmark", str(source), name, str(tmp_path / f"{name}.parquet")],
+                exit_on_error=False,
+                result_action="return_value",
+            )
+            for name in ("missing", "dda_qexactive")
+        ]
+    finally:
+        logger.remove(sink)
+
+    assert statuses == [1, 1]
+    assert "unknown packaged ProteoBench module 'missing'" in messages[0]
+    assert "sample annotation matched no observations" in messages[1]
+
+
 def test_cli_exposes_only_complete_workflows() -> None:
     command_names = {name for name in app.resolved_commands() if not name.startswith("-")}
 
@@ -739,7 +769,7 @@ def test_cli_exposes_only_complete_workflows() -> None:
             "benchmark",
             (
                 "Existing APB2 result to annotate and score",
-                "ProteoBench module settings TOML",
+                "Packaged ProteoBench module",
                 "New scored APB2 result; format selected from its suffix",
                 "One named APB abundance layer to score",
                 "Score only the APB primary layer represented by X",
@@ -754,7 +784,7 @@ def test_cli_exposes_only_complete_workflows() -> None:
                 "Vendor result table or directory",
                 "One or more protein FASTA files",
                 "Vendor search-parameter file",
-                "ProteoBench module settings TOML",
+                "Packaged ProteoBench module",
                 "New scored APB2 .h5ad, .h5mu, .parquet, or",
                 ".duckdb result",
                 "Parameter-file software; restrict result",

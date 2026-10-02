@@ -28,7 +28,7 @@ from pydantic import ValidationError
 from apb_proteobench.api import ProteoBenchAnalysisResult, ProteoBenchAnalyzer
 from apb_proteobench.calculation.intermediate import align_runs
 from apb_proteobench.calculation.metrics import PROTEOBENCH_SOURCE_REVISION
-from apb_proteobench.configuration.load import load_module
+from apb_proteobench.configuration.load import LoadedModule, load_module, load_packaged_module
 from apb_proteobench.integration import (
     ALL_ABUNDANCE_LAYERS,
     PRIMARY_LAYER,
@@ -59,8 +59,8 @@ class RunCliOptions:
         Parameter(help="Vendor search-parameter file"),
     ] = None
     module: Annotated[
-        Path | None,
-        Parameter(help="ProteoBench module settings TOML"),
+        str | None,
+        Parameter(help="Packaged ProteoBench module name, or a module TOML path"),
     ] = None
     output: Annotated[
         Path | None,
@@ -118,7 +118,10 @@ DEFAULT_RUN_CLI_OPTIONS = RunCliOptions()
 @app.command
 def benchmark(
     source: Annotated[Path, Parameter(help="Existing APB2 result to annotate and score")],
-    module: Annotated[Path, Parameter(help="ProteoBench module settings TOML")],
+    module: Annotated[
+        str,
+        Parameter(help="Packaged ProteoBench module name, or a module TOML path"),
+    ],
     target: Annotated[
         Path,
         Parameter(help="New scored APB2 result; format selected from its suffix"),
@@ -159,7 +162,7 @@ def benchmark(
     try:
         _require_new_target(source, target)
         parsed = read_parsed_levels(source)
-        result = ProteoBenchAnalyzer(load_module(module), selection=selection).analyze(parsed)
+        result = ProteoBenchAnalyzer(_load_module(module), selection=selection).analyze(parsed)
         target.parent.mkdir(parents=True, exist_ok=True)
         write_parsed_levels(result.parsed, target)
         _export_result_performance(result, {}, result_performance)
@@ -196,7 +199,7 @@ def run(
         logger.error("pass --params PATH for the vendor search-parameter file")
         return 1
     if options.module is None:
-        logger.error("pass --module PATH for the ProteoBench module settings")
+        logger.error("pass --module NAME or --module PATH for the ProteoBench module")
         return 1
     if options.output is None:
         logger.error("pass --output PATH for the final APB2 result")
@@ -244,7 +247,7 @@ def run(
         ).verify_peptides(parsed)
         fasta_verify_seconds = perf_counter() - started
         started = perf_counter()
-        loaded_module = load_module(options.module)
+        loaded_module = _load_module(options.module)
         module_load_seconds = perf_counter() - started
         started = perf_counter()
         result = ProteoBenchAnalyzer(
@@ -296,6 +299,13 @@ def run(
         verbose=verbose,
     )
     return 0
+
+
+def _load_module(module: str, /) -> LoadedModule:
+    """Load a module TOML path, or a packaged module when the value is not a TOML path."""
+    if module.endswith(".toml"):
+        return load_module(Path(module))
+    return load_packaged_module(module)
 
 
 def _run_timing_targets(directory: Path | None) -> dict[str, Path]:

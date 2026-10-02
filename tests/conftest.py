@@ -126,23 +126,60 @@ def parsed_result() -> ParsedLevels:
     return ParsedLevels(levels={"ion": level}, uns={})
 
 
+SPECIES_ORGANISMS = {
+    "YEAST": "Saccharomyces cerevisiae",
+    "ECOLI": "Escherichia coli",
+    "HUMAN": "Homo sapiens",
+}
+
+
 def write_module(path: Path, /, *, alias: bool = False, hy: bool = False) -> None:
-    """Write the small module in the existing ProteoBench TOML shape."""
+    """Write the small module as a module TOML and the SDRF it names beside it."""
     settings = module_settings(hy=hy)
-    lines = []
-    for species, ratio in settings.species_expected_ratio.items():
-        lines.extend([f"[species_expected_ratio.{species}]", f"A_vs_B = {ratio.a_vs_b}"])
-    lines.append("[species_mapper]")
-    lines.extend(f'"{flag}" = "{species}"' for flag, species in settings.species_mapper.items())
-    lines.extend(["[general]", 'level = "ion"', "min_count_multispec = 1"])
-    for sample in settings.samples:
+    sdrf = path.with_suffix(".sdrf.tsv")
+    lines = [f'sdrf = "{sdrf.name}"']
+    for flag, species in settings.species_mapper.items():
         lines.extend(
             [
-                "[[samples]]",
-                f'raw_file = "{sample.raw_file}"',
-                *([f'raw_file_alias = "{sample.raw_file}_alias"'] if alias else []),
-                f'sample_name = "{sample.sample_name}"',
-                f'condition = "{sample.condition}"',
+                f"[species.{species}]",
+                f'organism = "{SPECIES_ORGANISMS[species].lower()}"',
+                f'suffix = "{flag}"',
             ]
         )
+    lines.extend(["[general]", 'level = "ion"', "min_count_multispec = 1"])
+    if alias:
+        lines.append("[run_aliases]")
+        lines.extend(
+            f'"{sample.raw_file}.raw" = ["{sample.raw_file}_alias"]' for sample in settings.samples
+        )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    write_sdrf(sdrf, settings)
+
+
+def write_sdrf(path: Path, settings: ModuleSettings, /) -> None:
+    """Write one SDRF row per sample; condition A holds each ratio's numerator."""
+    species = list(settings.species_expected_ratio.items())
+    header = [
+        "source name",
+        *["characteristics[spiked compound]"] * len(species),
+        "assay name",
+        "comment[data file]",
+        "factor value[spiked compound]",
+    ]
+    rows = [header]
+    for sample in settings.samples:
+        quantities = [
+            f"CT=mixture;SP={SPECIES_ORGANISMS[name]};"
+            f"QY={ratio.a_vs_b if sample.condition == 'A' else 1.0:g} ng"
+            for name, ratio in species
+        ]
+        rows.append(
+            [
+                f"mixture_{sample.condition}",
+                *quantities,
+                sample.sample_name,
+                f"{sample.raw_file}.raw",
+                sample.condition,
+            ]
+        )
+    path.write_text("\n".join("\t".join(row) for row in rows) + "\n", encoding="utf-8")

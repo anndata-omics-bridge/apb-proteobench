@@ -1,4 +1,4 @@
-"""ProteoBench-compatible aggregate HYE/HY score metrics."""
+"""ProteoBench-compatible aggregate HYE/HY and plasma score metrics."""
 
 from __future__ import annotations
 
@@ -8,8 +8,11 @@ import polars as pl
 from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator
 from scipy.stats import rankdata
 
-PROTEOBENCH_COMPATIBILITY_VERSION = "0.17.0"
-PROTEOBENCH_SOURCE_REVISION = "fc95e712ca0466485814d3895087a048cfc0d2b0"
+PROTEOBENCH_COMPATIBILITY_VERSION = "0.18.0"
+PROTEOBENCH_SOURCE_REVISION = "cd2a8f0034440bd337c9d34c41be0d36c08e19a7"
+
+_HUMAN = "HUMAN"
+_ABS_EPSILON = {"median": pl.col("abs_epsilon").median(), "mean": pl.col("abs_epsilon").mean()}
 
 type ScoreMetric = int | float
 
@@ -19,8 +22,9 @@ class _ScoreModel(BaseModel):
 
 
 class ScoreConfig(_ScoreModel):
-    """Cutoff range used to build one ProteoBench score document."""
+    """Module species and cutoff range used to build one ProteoBench score document."""
 
+    species: tuple[str, ...] = Field(min_length=1)
     default_cutoff: int = Field(default=3, ge=1)
     max_nr_observed: int = Field(default=6, ge=1)
 
@@ -51,6 +55,10 @@ class ProteoBenchScores(_ScoreModel):
     median_abs_epsilon_precision_eq_species: float
     mean_abs_epsilon_precision_eq_species: float
     nr_feature: int
+    median_abs_log2_fc_error_spike_ins: float
+    nr_quantified_spike_ins: int
+    dynamic_range_human_plasma: float
+    median_abs_epsilon_human_plasma: float
 
 
 def build_scores(
@@ -58,8 +66,12 @@ def build_scores(
     config: ScoreConfig,
 ) -> ProteoBenchScores:
     """Compute the compatible score-only ProteoBench storage model."""
+    plasma_inputs = _plasma_inputs(intermediate)
     results = {
-        str(cutoff): _metrics_at_cutoff(intermediate, cutoff)
+        str(cutoff): CutoffScores(
+            _metrics_at_cutoff(intermediate, cutoff)
+            | _plasma_metrics(plasma_inputs.filter(pl.col("nr_observed") >= cutoff), config.species)
+        )
         for cutoff in range(1, config.max_nr_observed + 1)
     }
     selected = results[str(config.default_cutoff)]
@@ -90,6 +102,16 @@ def build_scores(
             selected_metrics, "mean_abs_epsilon_precision_eq_species"
         ),
         nr_feature=_required_int_metric(selected_metrics, "nr_feature"),
+        median_abs_log2_fc_error_spike_ins=_required_float_metric(
+            selected_metrics, "median_abs_log2_fc_error_spike_ins"
+        ),
+        nr_quantified_spike_ins=_required_int_metric(selected_metrics, "nr_quantified_spike_ins"),
+        dynamic_range_human_plasma=_required_float_metric(
+            selected_metrics, "dynamic_range_human_plasma_mean"
+        ),
+        median_abs_epsilon_human_plasma=_required_float_metric(
+            selected_metrics, "median_abs_epsilon_human_plasma"
+        ),
     )
 
 
@@ -118,16 +140,69 @@ def compute_roc_auc(frame: pd.DataFrame) -> float:
     return (rank_sum - n_positive * (n_positive + 1) / 2) / (n_positive * n_negative)
 
 
-def _metrics_at_cutoff(frame: pd.DataFrame, cutoff: int) -> CutoffScores:
+def _metrics_at_cutoff(frame: pd.DataFrame, cutoff: int) -> dict[str, ScoreMetric]:
     selected = frame[frame["nr_observed"] >= cutoff]
-    metrics: dict[str, ScoreMetric] = {
+    return {
         **_species_metrics(selected),
         **_cv_metrics(selected),
         "variance_epsilon_global": float(selected["epsilon"].var()) if len(selected) else 0.0,
         "nr_feature": len(selected),
         "roc_auc": compute_roc_auc(selected),
     }
-    return CutoffScores(metrics)
+
+
+def _plasma_inputs(intermediate: pd.DataFrame) -> pl.DataFrame:
+    """Select the plasma-metric columns once; NaN becomes null, so aggregations skip it."""
+    columns = ["species", "nr_observed", "epsilon", "Intensity_mean_A", "Intensity_mean_B"]
+    return pl.from_pandas(intermediate[columns], include_index=False).select(
+        "species",
+        "nr_observed",
+        abs_epsilon=pl.col("epsilon").abs(),
+        **{
+            f"log10_{condition}": pl.col(f"Intensity_mean_{condition}")
+            .clip(lower_bound=1e-10)
+            .log10()
+            for condition in "AB"
+        },
+    )
+
+
+def _plasma_metrics(selected: pl.DataFrame, species: tuple[str, ...]) -> dict[str, ScoreMetric]:
+    """ProteoBench plasma metrics: HUMAN against the spike-ins, every other species.
+
+    As in ProteoBench, an empty row subset scores 0.0 and an empty cutoff has zero dynamic range.
+    """
+    is_human = pl.col("species") == _HUMAN
+    human = selected.filter(is_human)
+    spike_ins = selected.filter(~is_human)
+    per_species = spike_ins.group_by("species").agg(**_ABS_EPSILON)
+    counts = dict(selected.group_by("species").len().iter_rows())
+    metrics: dict[str, ScoreMetric] = {"nr_quantified_spike_ins": spike_ins.height}
+    metrics |= {f"nr_quantified_{name}": counts.get(name, 0) for name in species}
+    for stat, aggregate in _ABS_EPSILON.items():
+        pooled = _subset_metric(spike_ins, aggregate)
+        metrics[f"{stat}_abs_log2_fc_error_spike_ins"] = pooled
+        metrics[f"{stat}_abs_log2_fc_error_spike_ins_global"] = pooled
+        metrics[f"{stat}_abs_log2_fc_error_spike_ins_eq_species"] = _subset_metric(
+            per_species, pl.col(stat).mean()
+        )
+        metrics[f"{stat}_abs_epsilon_human_plasma"] = _subset_metric(human, aggregate)
+    spread = [_dynamic_range(human, condition) if selected.height else 0.0 for condition in "AB"]
+    metrics["dynamic_range_human_plasma_A"], metrics["dynamic_range_human_plasma_B"] = spread
+    metrics["dynamic_range_human_plasma_mean"] = float(np.mean(spread))
+    return metrics
+
+
+def _subset_metric(frame: pl.DataFrame, aggregate: pl.Expr) -> float:
+    return _as_float(frame.select(aggregate).item()) if frame.height else 0.0
+
+
+def _dynamic_range(human: pl.DataFrame, condition: str) -> float:
+    """P90 minus P10 of log10 mean intensity, interpolated linearly as pandas does."""
+    log10 = pl.col(f"log10_{condition}")
+    return _as_float(
+        human.select(log10.quantile(0.9, "linear") - log10.quantile(0.1, "linear")).item()
+    )
 
 
 def _species_metrics(selected: pd.DataFrame) -> dict[str, float]:

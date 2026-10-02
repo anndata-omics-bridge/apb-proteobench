@@ -124,8 +124,8 @@ def _sample_frame(module: LoadedModule) -> pl.DataFrame:
                 list(
                     dict.fromkeys(
                         identifier
-                        for identifier in (sample.raw_file_alias, sample.sample_name)
-                        if identifier is not None and identifier != sample.raw_file
+                        for identifier in (*sample.raw_file_aliases, sample.sample_name)
+                        if identifier != sample.raw_file
                     )
                 )
                 for sample in samples

@@ -1,90 +1,48 @@
-[species_expected_ratio]
-[species_expected_ratio.YEAST]
-"A_vs_B" = 0.3333333333333333333333333333333333333
-"color" = "red"
+# Sample design, species quantities and run files live in the module SDRF.
+# This file holds the scoring settings the SDRF cannot express.
+# SDRF quantities: PYE9 of Distler et al. 2025, a 1:9 dilution in human plasma of PYE1
+# (A 90/2/8, B 90/6/4 % w/w human/yeast/E. coli); 200 ng injected.
+sdrf = "dia_plasma.sdrf.tsv"
 
-[species_expected_ratio.ECOLI]
-"A_vs_B" = 2.0
-"color" = "blue"
+[species.YEAST]
+organism = "saccharomyces cerevisiae"
+suffix = "_YEAST"
+color = "red"
 
-[species_expected_ratio.HUMAN]
-"A_vs_B" = 1.0
-"color" = "green"
+[species.ECOLI]
+organism = "escherichia coli"
+suffix = "_ECOLI"
+color = "blue"
 
-[species_mapper]
-"_YEAST" = "YEAST"
-"_ECOLI" = "ECOLI"
-"_HUMAN" = "HUMAN"
+[species.HUMAN]
+organism = "homo sapiens"
+suffix = "_HUMAN"
+color = "green"
 
 [general]
 "min_count_multispec" = 1
 "level" = "ion"
+"max_nr_observed" = 12
 
-[[samples]]
-raw_file = "A9_G_DIA_nLC_tTOF_R1"
-sample_name = "Condition_A_Sample_1"
-condition = "A"
-
-[[samples]]
-raw_file = "A9_G_DIA_nLC_tTOF_R2"
-sample_name = "Condition_A_Sample_2"
-condition = "A"
-
-[[samples]]
-raw_file = "A9_G_DIA_nLC_tTOF_R3"
-sample_name = "Condition_A_Sample_3"
-condition = "A"
-
-[[samples]]
-raw_file = "A9_G_DIA_nLC_tTOF_R4"
-sample_name = "Condition_A_Sample_4"
-condition = "A"
-
-[[samples]]
-raw_file = "A9_G_DIA_nLC_tTOF_R5"
-sample_name = "Condition_A_Sample_5"
-condition = "A"
-
-[[samples]]
-raw_file = "A9_G_DIA_nLC_tTOF_R6"
-sample_name = "Condition_A_Sample_6"
-condition = "A"
-
-[[samples]]
-raw_file = "B9_G_DIA_nLC_tTOF_R1"
-sample_name = "Condition_B_Sample_1"
-condition = "B"
-
-[[samples]]
-raw_file = "B9_G_DIA_nLC_tTOF_R2"
-sample_name = "Condition_B_Sample_2"
-condition = "B"
-
-[[samples]]
-raw_file = "B9_G_DIA_nLC_tTOF_R3"
-sample_name = "Condition_B_Sample_3"
-condition = "B"
-
-[[samples]]
-raw_file = "B9_G_DIA_nLC_tTOF_R4"
-sample_name = "Condition_B_Sample_4"
-condition = "B"
-
-[[samples]]
-raw_file = "B9_G_DIA_nLC_tTOF_R5"
-sample_name = "Condition_B_Sample_5"
-condition = "B"
-
-[[samples]]
-raw_file = "B9_G_DIA_nLC_tTOF_R6"
-sample_name = "Condition_B_Sample_6"
-condition = "B"
-
+# Further run names that vendor tables report, keyed by SDRF comment[data file].
+[run_aliases]
+"A9_G_DIA_nLC_tTOF_R1.d" = ["LFQ_Plasma_Condition_A_Sample_Alpha_01"]
+"A9_G_DIA_nLC_tTOF_R2.d" = ["LFQ_Plasma_Condition_A_Sample_Alpha_02"]
+"A9_G_DIA_nLC_tTOF_R3.d" = ["LFQ_Plasma_Condition_A_Sample_Alpha_03"]
+"A9_G_DIA_nLC_tTOF_R4.d" = ["LFQ_Plasma_Condition_A_Sample_Alpha_04"]
+"A9_G_DIA_nLC_tTOF_R5.d" = ["LFQ_Plasma_Condition_A_Sample_Alpha_05"]
+"A9_G_DIA_nLC_tTOF_R6.d" = ["LFQ_Plasma_Condition_A_Sample_Alpha_06"]
+"B9_G_DIA_nLC_tTOF_R1.d" = ["LFQ_Plasma_Condition_B_Sample_Alpha_01"]
+"B9_G_DIA_nLC_tTOF_R2.d" = ["LFQ_Plasma_Condition_B_Sample_Alpha_02"]
+"B9_G_DIA_nLC_tTOF_R3.d" = ["LFQ_Plasma_Condition_B_Sample_Alpha_03"]
+"B9_G_DIA_nLC_tTOF_R4.d" = ["LFQ_Plasma_Condition_B_Sample_Alpha_04"]
+"B9_G_DIA_nLC_tTOF_R5.d" = ["LFQ_Plasma_Condition_B_Sample_Alpha_05"]
+"B9_G_DIA_nLC_tTOF_R6.d" = ["LFQ_Plasma_Condition_B_Sample_Alpha_06"]
 
 [reference_database]
 # Reference protein database used to validate uploaded protein identifiers.
 # Read by proteobench.validation (ModuleValidationConfig).
-"fasta_url" = "https://proteobench.cubimed.rub.de/fasta/ProteoBenchFASTA_Distler_PYE.zip"
+"fasta_url" = "https://proteobench.cubimed.rub.de/fasta/ProteoBenchFASTA_MixedSpecies_HYE.zip"
 
 [validation]
 # Validation profile applied to submissions for this module.

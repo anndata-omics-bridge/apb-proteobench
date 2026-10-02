@@ -124,7 +124,7 @@ def test_dense_and_sparse_diagnostics_are_equal() -> None:
 
 def test_score_names_cutoffs_and_roc_edge_cases() -> None:
     result = MixedSpeciesDiagnostics().diagnose(quantitative_input(), module_settings())
-    scores = build_scores(result.legacy, ScoreConfig())
+    scores = build_scores(result.legacy, ScoreConfig(species=("HUMAN", "YEAST", "ECOLI")))
     tied = pd.DataFrame(
         {
             "species": ["HUMAN", "HUMAN", "YEAST", "YEAST"],
@@ -159,3 +159,44 @@ def test_alignment_rejects_conflicting_design() -> None:
 
     with pytest.raises(ValueError, match="does not match module condition"):
         MixedSpeciesDiagnostics().diagnose(inputs, module_settings())
+
+
+def test_plasma_metrics_match_hand_computed_values() -> None:
+    intermediate = pd.DataFrame(
+        {
+            "species": ["HUMAN", "HUMAN", "HUMAN", "YEAST", "YEAST", "ECOLI"],
+            "nr_observed": [6, 6, 2, 6, 3, 6],
+            "epsilon": [0.1, -0.3, 0.5, 0.2, -0.6, 1.0],
+            "Intensity_mean_A": [10.0, 1e3, 1e5, 1.0, 1.0, 1.0],
+            "Intensity_mean_B": [1e2, 1e3, np.nan, 1.0, 1.0, 1.0],
+            "log2_A_vs_B": [0.0] * 6,
+            "log2_expectedRatio": [0.0, 0.0, 0.0, -1.0, -1.0, 1.0],
+            "CV_A": [0.1] * 6,
+            "CV_B": [0.1] * 6,
+        }
+    )
+    config = ScoreConfig(species=("HUMAN", "YEAST", "ECOLI"), default_cutoff=1, max_nr_observed=7)
+    scores = build_scores(intermediate, config)
+    all_rows, observed_six, empty = (scores.results[cutoff].root for cutoff in ("1", "6", "7"))
+
+    assert all_rows == pytest.approx(
+        all_rows
+        | {
+            "median_abs_log2_fc_error_spike_ins": 0.6,
+            "mean_abs_log2_fc_error_spike_ins_global": 0.6,
+            "median_abs_log2_fc_error_spike_ins_eq_species": 0.7,
+            "median_abs_epsilon_human_plasma": 0.3,
+            "nr_quantified_spike_ins": 3,
+            "nr_quantified_HUMAN": 3,
+            "nr_quantified_ECOLI": 1,
+            "dynamic_range_human_plasma_A": 3.2,
+            "dynamic_range_human_plasma_B": 0.8,
+            "dynamic_range_human_plasma_mean": 2.0,
+        }
+    )
+    assert observed_six["dynamic_range_human_plasma_A"] == pytest.approx(1.6)
+    assert observed_six["mean_abs_epsilon_human_plasma"] == pytest.approx(0.2)
+    assert observed_six["nr_quantified_YEAST"] == 1
+    assert empty["dynamic_range_human_plasma_mean"] == empty["nr_quantified_HUMAN"] == 0
+    assert scores.dynamic_range_human_plasma == pytest.approx(2.0)
+    assert scores.nr_quantified_spike_ins == 3

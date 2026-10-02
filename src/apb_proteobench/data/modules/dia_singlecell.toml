@@ -1,56 +1,29 @@
-[species_expected_ratio]
-[species_expected_ratio.YEAST]
-"A_vs_B" = 0.2
-"color" = "#88ccef"
+# Sample design, species quantities and run files live in the module SDRF.
+# This file holds the scoring settings the SDRF cannot express.
+sdrf = "dia_singlecell.sdrf.tsv"
 
-[species_expected_ratio.HUMAN]
-"A_vs_B" = 1.2
-"color" = "#ddcc77"
+[species.YEAST]
+organism = "saccharomyces cerevisiae"
+suffix = "_YEAST"
+color = "#88ccef"
 
-[species_mapper]
-"_YEAST" = "YEAST"
-"_HUMAN" = "HUMAN"
+[species.HUMAN]
+organism = "homo sapiens"
+suffix = "_HUMAN"
+color = "#ddcc77"
 
 [general]
 "min_count_multispec" = 1
 "level" = "ion"
 
-[[samples]]
-raw_file = "20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_240pg_10pg_H_Y_r1"
-raw_file_alias = "20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_240pg_10pg_H_Y_r1_uncalibrated"
-sample_name = "Condition_A_Sample_1"
-condition = "A"
-
-[[samples]]
-raw_file = "20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_240pg_10pg_H_Y_r2"
-raw_file_alias = "20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_240pg_10pg_H_Y_r2_uncalibrated"
-sample_name = "Condition_A_Sample_2"
-condition = "A"
-
-[[samples]]
-raw_file = "20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_240pg_10pg_H_Y_r3"
-raw_file_alias = "20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_240pg_10pg_H_Y_r3_uncalibrated"
-sample_name = "Condition_A_Sample_3"
-condition = "A"
-
-[[samples]]
-raw_file = "20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_200pg_50pg_H_Y_r1"
-raw_file_alias = "20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_200pg_50pg_H_Y_r1_uncalibrated"
-sample_name = "Condition_B_Sample_1"
-condition = "B"
-
-[[samples]]
-raw_file = "20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_200pg_50pg_H_Y_r2"
-raw_file_alias = "20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_200pg_50pg_H_Y_r2_uncalibrated"
-sample_name = "Condition_B_Sample_2"
-condition = "B"
-
-[[samples]]
-raw_file = "20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_200pg_50pg_H_Y_r3"
-raw_file_alias = "20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_200pg_50pg_H_Y_r3_uncalibrated"
-sample_name = "Condition_B_Sample_3"
-condition = "B"
-
+# Further run names that vendor tables report, keyed by SDRF comment[data file].
+[run_aliases]
+"20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_240pg_10pg_H_Y_r1.raw" = ["20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_240pg_10pg_H_Y_r1_uncalibrated"]
+"20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_240pg_10pg_H_Y_r2.raw" = ["20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_240pg_10pg_H_Y_r2_uncalibrated"]
+"20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_240pg_10pg_H_Y_r3.raw" = ["20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_240pg_10pg_H_Y_r3_uncalibrated"]
+"20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_200pg_50pg_H_Y_r1.raw" = ["20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_200pg_50pg_H_Y_r1_uncalibrated"]
+"20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_200pg_50pg_H_Y_r2.raw" = ["20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_200pg_50pg_H_Y_r2_uncalibrated"]
+"20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_200pg_50pg_H_Y_r3.raw" = ["20231123_DIA_240k_20Th_40ms_FAIMSCV-48_gas3p8_200pg_50pg_H_Y_r3_uncalibrated"]
 
 [reference_database]
 # Reference protein database used to validate uploaded protein identifiers.

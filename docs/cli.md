@@ -4,8 +4,8 @@
 
 | Command | Input | Outputs |
 | --- | --- | --- |
-| `apb-proteobench run` | vendor table, parameters, FASTA, and module TOML | scored APB2 result and optional pMultiQC/ProteoBot pair |
-| `apb-proteobench benchmark` | existing APB2 result and module TOML | scored APB2 result and optional pMultiQC/ProteoBot pair |
+| `apb-proteobench run` | vendor table, parameters, FASTA, and packaged module or module TOML | scored APB2 result and optional pMultiQC/ProteoBot pair |
+| `apb-proteobench benchmark` | existing APB2 result and packaged module or module TOML | scored APB2 result and optional pMultiQC/ProteoBot pair |
 
 In-memory annotation and scoring remain available through `ProteoBenchAnalyzer`, but are not separate CLI commands. APB2 owns conversion and persistence. Use `apb2 convert`, `apb-fasta verify-peptides`, and `apb-aggregate` when a staged shell workflow is needed.
 
@@ -22,7 +22,7 @@ The supplied path must be named exactly `result_performance.csv`. Neither it nor
 ## `apb-proteobench run`
 
 ```text
-apb-proteobench run DATA FASTA... --params PATH --module PATH --output RESULT [OPTIONS]
+apb-proteobench run DATA FASTA... --params PATH --module NAME|PATH --output RESULT [OPTIONS]
 ```
 
 `run` converts vendor inputs, verifies peptides against FASTA, applies the module experiment design, scores the selected layer, and writes one final APB2 result:
@@ -54,14 +54,14 @@ apb-proteobench benchmark SOURCE MODULE TARGET [OPTIONS]
 ```bash
 apb-proteobench benchmark \
     results/fasta-checked.h5mu \
-    module_settings.toml \
+    dda_qexactive \
     results/scored.h5mu \
     --x \
     --result-performance reports/result_performance.csv \
     --verbose
 ```
 
-With neither layer option, `benchmark` scores every declared abundance layer. `--x` selects only the APB primary/X layer; `--layer NAME` selects one named abundance layer. The APB2 target must differ from the source and must not already exist.
+The module argument of `benchmark` and `--module` of `run` name a packaged module, such as `dda_qexactive`, or a module TOML path ending in `.toml`, whose SDRF is resolved beside it. With neither layer option, `benchmark` scores every declared abundance layer. `--x` selects only the APB primary/X layer; `--layer NAME` selects one named abundance layer. The APB2 target must differ from the source and must not already exist.
 
 ## Run pMultiQC
 

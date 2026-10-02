@@ -28,6 +28,8 @@ Scoring persists schema version 3, with common provenance on the root and layer-
 The feature diagnostics have exactly one row per variable in the selected level. Scores include the
 complete cutoff-indexed result plus the configured default-cutoff projection.
 
+Each score document follows ProteoBench 0.18 for every quantitative module, including the plasma metrics: per cutoff, spike-in error (`*_abs_log2_fc_error_spike_ins`, plus `_global` and `_eq_species`), counts (`nr_quantified_spike_ins`, `nr_quantified_<SPECIES>`), HUMAN dynamic range (`dynamic_range_human_plasma_A`, `_B`, `_mean`: P90 minus P10 of log10 mean intensity) and HUMAN error (`*_abs_epsilon_human_plasma`). Spike-ins are all species other than HUMAN; outside `dia_plasma`, `human_plasma` names the module's human sample. The default cutoff projects `median_abs_log2_fc_error_spike_ins`, `nr_quantified_spike_ins`, `dynamic_range_human_plasma` and `median_abs_epsilon_human_plasma` to the top level. As in ProteoBench, an empty row subset scores 0.0.
+
 Annotation remains intact when scoring is added. Scoring refuses existing scores, not an annotation-only namespace. Selected quantities are derived from scoring keys: there is no `layers` wrapper or `X` alias. The primary quantity retains its logical name, displayed as `Intensity · X`; its matrix is stored only in `X`.
 
 ## pMultiQC compatibility export
