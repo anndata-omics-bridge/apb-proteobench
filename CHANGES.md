@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Breaking:** `run` is now `apb-proteobench run quant`, with unchanged options; `apb-proteobench run entrapment` scores ProteoBench's entrapment module (`entrapment_dia_astral`) from vendor files, a FASTA and ProteoBench's pair file. `EntrapmentAnalyzer` and `EntrapmentAnalysisResult` are the in-memory API; `load_packaged_entrapment_module` and `read_pairs` load the module and pair file. Each precursor q-value kind that apb-catalog's `proteobench_entrapment` set offers is scored (DIA-NN `q_value`, `library_q_value`, `global_q_value`). Ported from ProteoBench `1147290`; equal q-values share a rank, which differs from ProteoBench only for tied entrapment/target pairs. apb-catalog becomes a dependency.
+
+- Documented the remaining differences from ProteoBench in `docs/compatibility.md`: feature exclusion by the `protein_assignment` column rather than ProteoBench's per-tool `Proteins` column, and the caller-chosen scored layer, with the plasma measurements.
+
+- **Breaking:** `run` and `benchmark` score one abundance layer: `--layer NAME`, default `X` for the APB primary layer. `--x` is removed, and the CLI no longer scores every abundance layer by default; the Python API's `ALL_ABUNDANCE_LAYERS` still does. `--result-performance` therefore needs no extra selector, and exit status 2 for conflicting layer options is gone.
+
 - Every quantitative module's scores now include ProteoBench's plasma metrics, ported from `QuantDatapointPYE` at v0.18.0 with unchanged key names and formulas: spike-in error, per-species and spike-in counts, HUMAN dynamic range and HUMAN error per cutoff, plus four top-level projections. Spike-ins are all species other than HUMAN. Compatibility version moves to 0.18.0 (`cd2a8f00`), whose HYE scoring equals 0.17.0; scoring method `proteobench-compatible` becomes version 2. `ScoreConfig` requires the module `species`. Across 198 corpus intermediates the new metrics equal upstream within 3e-15 relative.
 
 - `dia_plasma` is now a supported module: a TOML plus SDRF for the 12 timsTOF runs of PYE9 (Distler et al. 2025), `max_nr_observed = 12`, the HYE FASTA, and the Custom-format run names as aliases.

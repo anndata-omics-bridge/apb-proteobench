@@ -16,12 +16,11 @@ To start from vendor files, provide:
 ## Direct one-call workflow
 
 ```bash
-apb-proteobench run report.tsv proteins.fasta \
+apb-proteobench run quant report.tsv proteins.fasta \
     --params search-parameters.txt \
     --module module_settings.toml \
     --software spectronaut \
     --level ion \
-    --x \
     --output results/scored.h5ad \
     --result-performance reports/result_performance.csv \
     --verbose
@@ -75,12 +74,11 @@ Both `run` and `benchmark` can write the current ion-level ProteoBench intermedi
 ```bash
 apb-proteobench benchmark \
     results/fasta-checked.h5mu module_settings.toml results/scored.h5mu \
-    --x \
     --result-performance reports/result_performance.csv
 multiqc --proteobench-plugin reports -o reports/multiqc
 ```
 
-The export requires `--x` for primary/X-only scoring or one `--layer NAME`; it rejects the default all-layer selection, non-ion levels, wrong CSV filenames, and either existing output. Both files are staged before publication; each final path is created atomically, and a failed publication rolls back files added by the same call. The CLI reads the selected in-memory APB2 layer once more to compute the versioned SHA-256 submission hash; scoring itself does not compute a hash. The CSV uses `index=False`, while the JSON uses ProteoBot's hash filename and top-level datapoint fields. pMultiQC and MultiQC require no changes.
+The export writes the one scored layer, `--layer NAME` or the default `X`; it rejects non-ion levels, wrong CSV filenames, and either existing output. Both files are staged before publication; each final path is created atomically, and a failed publication rolls back files added by the same call. The CLI reads the selected in-memory APB2 layer once more to compute the versioned SHA-256 submission hash; scoring itself does not compute a hash. The CSV uses `index=False`, while the JSON uses ProteoBot's hash filename and top-level datapoint fields. pMultiQC and MultiQC require no changes.
 
 ## Python workflow
 

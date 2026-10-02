@@ -1,13 +1,14 @@
 # CLI reference
 
-`apb-proteobench` exposes two complete workflows:
+`apb-proteobench` exposes three complete workflows:
 
 | Command | Input | Outputs |
 | --- | --- | --- |
-| `apb-proteobench run` | vendor table, parameters, FASTA, and packaged module or module TOML | scored APB2 result and optional pMultiQC/ProteoBot pair |
+| `apb-proteobench run quant` | vendor table, parameters, FASTA, and packaged module or module TOML | scored APB2 result and optional pMultiQC/ProteoBot pair |
+| `apb-proteobench run entrapment` | vendor table, parameters, FASTA, and ProteoBench's entrapment pair file | APB2 result scored for every precursor q-value kind |
 | `apb-proteobench benchmark` | existing APB2 result and packaged module or module TOML | scored APB2 result and optional pMultiQC/ProteoBot pair |
 
-In-memory annotation and scoring remain available through `ProteoBenchAnalyzer`, but are not separate CLI commands. APB2 owns conversion and persistence. Use `apb2 convert`, `apb-fasta verify-peptides`, and `apb-aggregate` when a staged shell workflow is needed.
+In-memory annotation and scoring remain available through `ProteoBenchAnalyzer` and `EntrapmentAnalyzer`, but are not separate CLI commands. APB2 owns conversion and persistence. Use `apb2 convert`, `apb-fasta verify-peptides`, and `apb-aggregate` when a staged shell workflow is needed.
 
 Use `apb-proteobench --help` or a command's `--help` for the installed version's generated Cyclopts reference. Direct conversion supports the software, versions, inputs, parameter parsers, and levels listed in the [APB2 support matrix](https://anndata-omics-bridge.github.io/apb2/supported_software/).
 
@@ -17,31 +18,47 @@ Both commands write the scored APB2 result. Its ProteoBench score and provenance
 
 Both commands also accept `--result-performance PATH`. This option writes two ion-level compatibility artifacts in the same directory: the `result_performance.csv` intermediate consumed by the existing pMultiQC ProteoBench module and the `<intermediate_hash>.json` datapoint stored by ProteoBot in `Proteobench/Results_quant_ion_DDA`.
 
-The supplied path must be named exactly `result_performance.csv`. Neither it nor the derived hash-named JSON may already exist; both files are staged before their final paths are created without overwrite, and the CSV has no DataFrame index. The export requires exactly one selected ion-level layer, so callers must pass `--x` for the APB primary/X layer or `--layer NAME` for one named abundance layer.
+The supplied path must be named exactly `result_performance.csv`. Neither it nor the derived hash-named JSON may already exist; both files are staged before their final paths are created without overwrite, and the CSV has no DataFrame index. The export writes the one scored layer, which must be at the ion level.
 
-## `apb-proteobench run`
+## `apb-proteobench run quant`
 
 ```text
-apb-proteobench run DATA FASTA... --params PATH --module NAME|PATH --output RESULT [OPTIONS]
+apb-proteobench run quant DATA FASTA... --params PATH --module NAME|PATH --output RESULT [OPTIONS]
 ```
 
-`run` converts vendor inputs, verifies peptides against FASTA, applies the module experiment design, scores the selected layer, and writes one final APB2 result:
+`run quant` converts vendor inputs, verifies peptides against FASTA, applies the module experiment design, scores the selected layer, and writes one final APB2 result:
 
 ```bash
-apb-proteobench run report.tsv human.fasta contaminants.fasta \
+apb-proteobench run quant report.tsv human.fasta contaminants.fasta \
     --params search-parameters.txt \
     --module module_settings.toml \
     --software spectronaut \
     --level ion \
-    --x \
     --output results/scored.h5ad \
     --result-performance reports/result_performance.csv \
     --verbose
 ```
 
-The main options are `--level LEVEL`, `--software`, `--strict`, `--backend`, `--il-equivalent`, `--protein-group-separator`, `--x`, `--layer NAME`, and `--timings-dir DIR`. `--level` converts one quantification level; omitting it converts every compatible level. Scoring includes every declared abundance layer by default; `--x` restricts scoring to the APB primary/X layer. `--timings-dir` optionally writes separate version-1 timing JSON files for APB2 conversion (`compile`, `read`, `parse`), FASTA verification (`load_database`, `verify_peptides`), and ProteoBench benchmarking (`load_module`, `analyze`, `write`, and `export` when requested). The files are independent of the scientific result and refuse existing targets. At least one FASTA is required. A single-level output may end in `.h5ad`; `.h5mu`, `.parquet`, and `.duckdb` support multiple levels. The target must differ from the vendor table and must not already exist.
+The main options are `--level LEVEL`, `--software`, `--strict`, `--backend`, `--il-equivalent`, `--protein-group-separator`, `--layer NAME`, and `--timings-dir DIR`. `--level` converts one quantification level; omitting it converts every compatible level. `--layer NAME` scores one abundance layer; the default `X` is the APB primary layer stored in AnnData `X`. `--timings-dir` optionally writes separate version-1 timing JSON files for APB2 conversion (`compile`, `read`, `parse`), FASTA verification (`load_database`, `verify_peptides`), and ProteoBench benchmarking (`load_module`, `analyze`, `write`, and `export` when requested). The files are independent of the scientific result and refuse existing targets. At least one FASTA is required. A single-level output may end in `.h5ad`; `.h5mu`, `.parquet`, and `.duckdb` support multiple levels. The target must differ from the vendor table and must not already exist.
 
-`run` performs no quantitative aggregation and scores the level named in `module_settings.toml` as the vendor table reports it. To derive the configured level from a lower one, use the staged route and insert `apb-aggregate` before `benchmark`.
+`run quant` performs no quantitative aggregation and scores the level named in `module_settings.toml` as the vendor table reports it. To derive the configured level from a lower one, use the staged route and insert `apb-aggregate` before `benchmark`.
+
+## `apb-proteobench run entrapment`
+
+```text
+apb-proteobench run entrapment DATA FASTA... --params PATH --pairs PATH --output RESULT [OPTIONS]
+```
+
+`run entrapment` converts vendor inputs at the module's level, verifies peptides against FASTA, labels each precursor target or entrapment from ProteoBench's pair file, and scores ProteoBench's entrapment metrics: lower-bound, combined and paired FDP, their categories, and the FDP curve. apb-catalog's `proteobench_entrapment` set names the precursor q-values the result offers (`q_value`, `library_q_value`, `global_q_value`); each kind is scored from its best value across runs:
+
+```bash
+apb-proteobench run entrapment report.parquet ProteoBenchFASTA_Entrapment_Human_with_contaminants_entrapment_pep.fasta \
+    --params report.log.txt \
+    --pairs ProteoBenchFASTA_Entrapment_Human_with_contaminants_entrapment_pep.txt.gz \
+    --output results/entrapment.h5ad
+```
+
+`--module` defaults to the packaged `entrapment_dia_astral`. Scores per kind sit in the level's `metadata["proteobench"]["entrapment"]`, each precursor's label, pair and best q-values in `varm["proteobench:entrapment"]`, and the catalogue lookups in `metadata["catalog"]["proteobench_entrapment"]`. Precursors with equal q-values share a rank, so a tie never counts as an entrapment out-scoring its target ([ProteoBench#1159](https://github.com/Proteobench/ProteoBench/issues/1159)). `--timings-dir` writes the same three timing files as `run quant`, without `export`.
 
 ## `apb-proteobench benchmark`
 
@@ -56,12 +73,11 @@ apb-proteobench benchmark \
     results/fasta-checked.h5mu \
     dda_qexactive \
     results/scored.h5mu \
-    --x \
     --result-performance reports/result_performance.csv \
     --verbose
 ```
 
-The module argument of `benchmark` and `--module` of `run` name a packaged module, such as `dda_qexactive`, or a module TOML path ending in `.toml`, whose SDRF is resolved beside it. With neither layer option, `benchmark` scores every declared abundance layer. `--x` selects only the APB primary/X layer; `--layer NAME` selects one named abundance layer. The APB2 target must differ from the source and must not already exist.
+The module argument of `benchmark` and `--module` of `run` name a packaged module, such as `dda_qexactive`, or a module TOML path ending in `.toml`, whose SDRF is resolved beside it. Both commands score one abundance layer: `--layer NAME`, by default `X`, the APB primary layer. The APB2 target must differ from the source and must not already exist.
 
 ## Run pMultiQC
 
@@ -77,6 +93,5 @@ The CLI passes the completed in-memory diagnostics table directly to the CSV wri
 
 - `0`: operation completed successfully
 - `1`: expected input, detection, parsing, annotation, scoring, result-I/O, or writing failure
-- `2`: invalid option combination, including `--layer` with `--x` or `--result-performance` without either single-layer selector
 
 Cyclopts reports invalid command-line usage. Unexpected programming errors remain visible with their traceback.

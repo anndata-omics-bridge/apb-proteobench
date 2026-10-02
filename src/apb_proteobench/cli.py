@@ -17,7 +17,7 @@ from apb2.api import (
     read_parsed_levels,
     write_parsed_levels,
 )
-from apb_fasta.api import FastaAnnotator
+from apb_fasta.api import FastaAnnotationResult, FastaAnnotator
 from apb_fasta.calculation.results import FastaAnnotationReports
 from apb_fasta.configuration import FastaAnnotationParameters
 from cyclopts import App, Parameter
@@ -25,12 +25,18 @@ from loguru import logger
 from protein_fasta.frame import ProteinDatabase, refseq, uniprotkb
 from pydantic import ValidationError
 
-from apb_proteobench.api import ProteoBenchAnalysisResult, ProteoBenchAnalyzer
+from apb_proteobench.api import (
+    EntrapmentAnalysisResult,
+    EntrapmentAnalyzer,
+    ProteoBenchAnalysisResult,
+    ProteoBenchAnalyzer,
+)
+from apb_proteobench.calculation.entrapment import read_pairs
 from apb_proteobench.calculation.intermediate import align_runs
 from apb_proteobench.calculation.metrics import PROTEOBENCH_SOURCE_REVISION
+from apb_proteobench.configuration.entrapment import load_packaged_entrapment_module
 from apb_proteobench.configuration.load import LoadedModule, load_module, load_packaged_module
 from apb_proteobench.integration import (
-    ALL_ABUNDANCE_LAYERS,
     PRIMARY_LAYER,
     LayerSelection,
     NamedAbundanceLayer,
@@ -42,6 +48,9 @@ from apb_proteobench.io.result_performance import (
 )
 from apb_proteobench.io.tool_timings import write_tool_timings
 from apb_proteobench.presentation import report_score
+
+PRIMARY_LAYER_NAME = "X"
+"""The ``--layer`` value that selects the APB primary layer stored in ``X``."""
 
 app = App(
     name="apb-proteobench",
@@ -87,17 +96,9 @@ class RunCliOptions:
         Parameter(help="One quantification level to convert"),
     ] = None
     layer: Annotated[
-        str | None,
-        Parameter(help="One named APB abundance layer to score"),
-    ] = None
-    x_only: Annotated[
-        bool,
-        Parameter(
-            name="--x",
-            negative=False,
-            help="Score only the APB primary layer represented by X",
-        ),
-    ] = False
+        str,
+        Parameter(help='Abundance layer to score; "X" is the APB primary layer'),
+    ] = PRIMARY_LAYER_NAME
     result_performance: Annotated[
         Path | None,
         Parameter(help="Write result_performance.csv and sibling ProteoBot JSON"),
@@ -115,6 +116,135 @@ class RunCliOptions:
 DEFAULT_RUN_CLI_OPTIONS = RunCliOptions()
 
 
+@dataclass(frozen=True, slots=True)
+class EntrapmentCliOptions:
+    """Options for the complete raw-vendor entrapment workflow."""
+
+    params: Annotated[
+        Path | None,
+        Parameter(help="Vendor search-parameter file"),
+    ] = None
+    pairs: Annotated[
+        Path | None,
+        Parameter(help="ProteoBench's entrapment peptide-pair file (.txt or .txt.gz)"),
+    ] = None
+    module: Annotated[
+        str,
+        Parameter(help="Packaged entrapment module name"),
+    ] = "entrapment_dia_astral"
+    output: Annotated[
+        Path | None,
+        Parameter(help="New scored APB2 .h5ad, .h5mu, .parquet, or .duckdb result"),
+    ] = None
+    software: Annotated[
+        str | None,
+        Parameter(help="Parameter-file software; restrict result recognition to plausible vendors"),
+    ] = None
+    backend: Annotated[
+        Literal["auto", "ahocorapy", "ahocorasick_rs"],
+        Parameter(help="FASTA peptide-matching backend"),
+    ] = "auto"
+    il_equivalent: Annotated[
+        bool,
+        Parameter(negative=False, help="Treat isoleucine and leucine as equivalent"),
+    ] = False
+    protein_group_separator: Annotated[
+        str,
+        Parameter(help="Separator between protein accessions"),
+    ] = ";"
+    timings_dir: Annotated[
+        Path | None,
+        Parameter(help="Write separate APB2, FASTA, and ProteoBench timing JSON files"),
+    ] = None
+    strict: Annotated[
+        bool,
+        Parameter(negative=False, help="Promote APB2 layer-contract warnings to errors"),
+    ] = False
+
+
+DEFAULT_ENTRAPMENT_CLI_OPTIONS = EntrapmentCliOptions()
+
+run_app = App(
+    name="run",
+    help="Convert vendor files, verify peptides against FASTA, and score one ProteoBench module",
+    help_on_error=True,
+)
+app.command(run_app)
+
+
+@dataclass(frozen=True, slots=True)
+class _VerifiedConversion:
+    """Vendor files converted by APB2, their peptides verified against FASTA, and timings."""
+
+    compiler: ParseRuleCompiler
+    verified: FastaAnnotationResult
+    seconds: dict[str, float]
+    levels: tuple[dict[str, str | float], ...]
+
+
+def _convert_and_verify(
+    data: Path,
+    params: Path,
+    fasta_paths: tuple[Path, ...],
+    /,
+    *,
+    level: QuantificationLevel | None,
+    software: str | None,
+    strict: bool,
+    backend: Literal["auto", "ahocorapy", "ahocorasick_rs"],
+    il_equivalent: bool,
+    protein_group_separator: str,
+) -> _VerifiedConversion:
+    """Convert vendor files with APB2 and verify their peptides against the FASTA files."""
+    if not fasta_paths:
+        raise ValueError("at least one FASTA path is required")
+    started = perf_counter()
+    compiler = ParseRuleCompiler(
+        data,
+        params,
+        requested_levels=None if level is None else (level,),
+        checks="strict" if strict else "standard",
+        software=software,
+    )
+    parser = compiler.compile()
+    compile_seconds = perf_counter() - started
+    started = perf_counter()
+    parsed, level_timings = parser.parse_with_timings()
+    read_seconds = sum(timing.read_seconds for timing in level_timings)
+    parse_seconds = max(0.0, perf_counter() - started - read_seconds)
+    started = perf_counter()
+    proteins = ProteinDatabase(uniprotkb, refseq).parse(fasta_paths)
+    fasta_load_seconds = perf_counter() - started
+    started = perf_counter()
+    verified = FastaAnnotator(
+        proteins,
+        parameters=FastaAnnotationParameters(
+            protein_group_separator=protein_group_separator,
+            matcher_backend=backend,
+            il_equivalent=il_equivalent,
+        ),
+    ).verify_peptides(parsed)
+    return _VerifiedConversion(
+        compiler=compiler,
+        verified=verified,
+        seconds={
+            "compile": compile_seconds,
+            "read": read_seconds,
+            "parse": parse_seconds,
+            "load_database": fasta_load_seconds,
+            "verify_peptides": perf_counter() - started,
+        },
+        levels=tuple(
+            {
+                "level": timing.level,
+                "read_seconds": timing.read_seconds,
+                "parse_seconds": timing.parse_seconds,
+            }
+            for timing in level_timings
+        ),
+    )
+
+
 @app.command
 def benchmark(
     source: Annotated[Path, Parameter(help="Existing APB2 result to annotate and score")],
@@ -129,17 +259,9 @@ def benchmark(
     /,
     *,
     layer: Annotated[
-        str | None,
-        Parameter(help="One named APB abundance layer to score"),
-    ] = None,
-    x_only: Annotated[
-        bool,
-        Parameter(
-            name="--x",
-            negative=False,
-            help="Score only the APB primary layer represented by X",
-        ),
-    ] = False,
+        str,
+        Parameter(help='Abundance layer to score; "X" is the APB primary layer'),
+    ] = PRIMARY_LAYER_NAME,
     result_performance: Annotated[
         Path | None,
         Parameter(help="Write result_performance.csv and sibling ProteoBot JSON"),
@@ -151,18 +273,11 @@ def benchmark(
 ) -> int:
     """Write scored APB2 TARGET and optional pMultiQC/ProteoBot export bundle."""
     try:
-        selection = _layer_selection(
-            layer,
-            x_only,
-            export_result_performance=result_performance is not None,
-        )
-    except _LayerSelectionUsageError as error:
-        logger.error(str(error))
-        return 2
-    try:
         _require_new_target(source, target)
         parsed = read_parsed_levels(source)
-        result = ProteoBenchAnalyzer(_load_module(module), selection=selection).analyze(parsed)
+        result = ProteoBenchAnalyzer(
+            _load_module(module), selection=_layer_selection(layer)
+        ).analyze(parsed)
         target.parent.mkdir(parents=True, exist_ok=True)
         write_parsed_levels(result.parsed, target)
         _export_result_performance(result, {}, result_performance)
@@ -173,8 +288,8 @@ def benchmark(
     return 0
 
 
-@app.command
-def run(
+@run_app.command(name="quant")
+def run_quant(
     data: Annotated[Path, Parameter(help="Vendor result table or directory")],
     /,
     *fasta_paths: Annotated[
@@ -187,12 +302,12 @@ def run(
         Parameter(negative=False, help="Report detailed conversion and scoring diagnostics"),
     ] = False,
 ) -> int:
-    """Write scored APB2 output and optional pMultiQC/ProteoBot export bundle.
+    """Score one quantitative module: write scored APB2 output and optional pMultiQC/ProteoBot export.
 
     Quantitative aggregation is a separate step: run apb-aggregate between conversion
     and benchmarking when the scored level must be derived from a lower one. Use
-    --level LEVEL to convert one quantification level. Scoring includes every declared
-    abundance layer by default; use --x for only the APB primary/X layer.
+    --level LEVEL to convert one quantification level. --layer NAME scores one abundance
+    layer; the default "X" is the APB primary layer.
     --timings-dir records internal operation timings outside the scored result.
     """
     if options.params is None:
@@ -205,100 +320,141 @@ def run(
         logger.error("pass --output PATH for the final APB2 result")
         return 1
     try:
-        selection = _layer_selection(
-            options.layer,
-            options.x_only,
-            export_result_performance=options.result_performance is not None,
-        )
-    except _LayerSelectionUsageError as error:
-        logger.error(str(error))
-        return 2
-    try:
         _require_new_target(data, options.output)
         timing_targets = _run_timing_targets(options.timings_dir)
         _require_new_timing_targets(timing_targets)
-        if not fasta_paths:
-            raise ValueError("at least one FASTA path is required")
-        started = perf_counter()
-        compiler = ParseRuleCompiler(
+        conversion = _convert_and_verify(
             data,
             options.params,
-            requested_levels=None if options.level is None else (options.level,),
-            checks="strict" if options.strict else "standard",
+            fasta_paths,
+            level=options.level,
             software=options.software,
+            strict=options.strict,
+            backend=options.backend,
+            il_equivalent=options.il_equivalent,
+            protein_group_separator=options.protein_group_separator,
         )
-        parser = compiler.compile()
-        compile_seconds = perf_counter() - started
-        started = perf_counter()
-        parsed, level_timings = parser.parse_with_timings()
-        read_seconds = sum(timing.read_seconds for timing in level_timings)
-        parse_seconds = max(0.0, perf_counter() - started - read_seconds)
-        started = perf_counter()
-        proteins = ProteinDatabase(uniprotkb, refseq).parse(fasta_paths)
-        fasta_load_seconds = perf_counter() - started
-        started = perf_counter()
-        verified = FastaAnnotator(
-            proteins,
-            parameters=FastaAnnotationParameters(
-                protein_group_separator=options.protein_group_separator,
-                matcher_backend=options.backend,
-                il_equivalent=options.il_equivalent,
-            ),
-        ).verify_peptides(parsed)
-        fasta_verify_seconds = perf_counter() - started
+        seconds = dict(conversion.seconds)
         started = perf_counter()
         loaded_module = _load_module(options.module)
-        module_load_seconds = perf_counter() - started
+        seconds["load_module"] = perf_counter() - started
         started = perf_counter()
         result = ProteoBenchAnalyzer(
             loaded_module,
-            selection=selection,
-        ).analyze(verified.parsed)
-        analysis_seconds = perf_counter() - started
+            selection=_layer_selection(options.layer),
+        ).analyze(conversion.verified.parsed)
+        seconds["analyze"] = perf_counter() - started
         started = perf_counter()
         options.output.parent.mkdir(parents=True, exist_ok=True)
         write_parsed_levels(result.parsed, options.output)
-        write_seconds = perf_counter() - started
-        search_parameters = compiler.parameters.model_dump(mode="json")
+        seconds["write"] = perf_counter() - started
+        search_parameters = conversion.compiler.parameters.model_dump(mode="json")
         started = perf_counter()
         _export_result_performance(result, search_parameters, options.result_performance)
-        export_seconds = perf_counter() - started
+        seconds["export"] = perf_counter() - started
         _write_run_timings(
             timing_targets,
-            {
-                "compile": compile_seconds,
-                "read": read_seconds,
-                "parse": parse_seconds,
-                "load_database": fasta_load_seconds,
-                "verify_peptides": fasta_verify_seconds,
-                "load_module": module_load_seconds,
-                "analyze": analysis_seconds,
-                "write": write_seconds,
-                "export": export_seconds,
-            },
-            tuple(
-                {
-                    "level": timing.level,
-                    "read_seconds": timing.read_seconds,
-                    "parse_seconds": timing.parse_seconds,
-                }
-                for timing in level_timings
-            ),
+            seconds,
+            conversion.levels,
             exported=options.result_performance is not None,
         )
     except (OSError, ValueError, ValidationError) as error:
         logger.error(str(error))
         return 1
     _report_vendor_benchmark(
-        compiler.detection.software,
-        compiler.detection.version,
-        verified.reports,
+        conversion.compiler.detection.software,
+        conversion.compiler.detection.version,
+        conversion.verified.reports,
         result,
         data,
         options.output,
         verbose=verbose,
     )
     return 0
+
+
+@run_app.command(name="entrapment")
+def run_entrapment(
+    data: Annotated[Path, Parameter(help="Vendor result table or directory")],
+    /,
+    *fasta_paths: Annotated[
+        Path,
+        Parameter(help="One or more protein FASTA files"),
+    ],
+    options: Annotated[EntrapmentCliOptions, Parameter(name="*")] = DEFAULT_ENTRAPMENT_CLI_OPTIONS,
+) -> int:
+    """Score one entrapment module: FDP estimates for every precursor q-value kind.
+
+    The result offers its q-value kinds through apb-catalog's proteobench_entrapment set;
+    each kind is scored. --pairs is ProteoBench's peptide-pair file for the module.
+    --timings-dir records internal operation timings outside the scored result.
+    """
+    if options.params is None:
+        logger.error("pass --params PATH for the vendor search-parameter file")
+        return 1
+    if options.pairs is None:
+        logger.error("pass --pairs PATH for ProteoBench's entrapment peptide-pair file")
+        return 1
+    if options.output is None:
+        logger.error("pass --output PATH for the final APB2 result")
+        return 1
+    try:
+        _require_new_target(data, options.output)
+        timing_targets = _run_timing_targets(options.timings_dir)
+        _require_new_timing_targets(timing_targets)
+        settings = load_packaged_entrapment_module(options.module)
+        conversion = _convert_and_verify(
+            data,
+            options.params,
+            fasta_paths,
+            level=settings.level,
+            software=options.software,
+            strict=options.strict,
+            backend=options.backend,
+            il_equivalent=options.il_equivalent,
+            protein_group_separator=options.protein_group_separator,
+        )
+        seconds = dict(conversion.seconds)
+        started = perf_counter()
+        pairs = read_pairs(options.pairs)
+        seconds["load_module"] = perf_counter() - started
+        started = perf_counter()
+        result = EntrapmentAnalyzer(settings, pairs=pairs).analyze(conversion.verified.parsed)
+        seconds["analyze"] = perf_counter() - started
+        started = perf_counter()
+        options.output.parent.mkdir(parents=True, exist_ok=True)
+        write_parsed_levels(result.parsed, options.output)
+        seconds["write"] = perf_counter() - started
+        _write_run_timings(timing_targets, seconds, conversion.levels, exported=False)
+    except (OSError, ValueError, ValidationError, LookupError) as error:
+        logger.error(str(error))
+        return 1
+    _report_entrapment(conversion, result, options.output)
+    return 0
+
+
+def _report_entrapment(
+    conversion: _VerifiedConversion, result: EntrapmentAnalysisResult, target: Path, /
+) -> None:
+    logger.info(
+        "vendor={} software_version={}",
+        conversion.compiler.detection.software,
+        conversion.compiler.detection.version or "missing",
+    )
+    for kind, scores in result.scores.items():
+        logger.info(
+            "kind={} precursors={} reported_fdr={:.6g} lower_bound_FDP={:.6g} "
+            "combined_FDP={:.6g} ({}) paired_FDP={:.6g} ({})",
+            kind,
+            scores.nr_id_features,
+            scores.reported_fdr_parsed_from_input,
+            scores.lower_bound_FDP,
+            scores.combined_FDP,
+            scores.category_combined,
+            scores.paired_FDP,
+            scores.category_paired,
+        )
+    logger.info("output={}", target)
 
 
 def _load_module(module: str, /) -> LoadedModule:
@@ -388,26 +544,8 @@ def _report_vendor_benchmark(
     report_score(result, source, target, verbose=verbose)
 
 
-class _LayerSelectionUsageError(ValueError):
-    """The CLI received mutually exclusive layer-selection options."""
-
-
-def _layer_selection(
-    layer: str | None,
-    x_only: bool,
-    /,
-    *,
-    export_result_performance: bool = False,
-) -> LayerSelection:
-    if layer is not None and x_only:
-        raise _LayerSelectionUsageError("--layer and --x are mutually exclusive")
-    if export_result_performance and layer is None and not x_only:
-        raise _LayerSelectionUsageError("--result-performance requires --x or --layer NAME")
-    if layer is not None:
-        return NamedAbundanceLayer(layer)
-    if x_only:
-        return PRIMARY_LAYER
-    return ALL_ABUNDANCE_LAYERS
+def _layer_selection(layer: str, /) -> LayerSelection:
+    return PRIMARY_LAYER if layer == PRIMARY_LAYER_NAME else NamedAbundanceLayer(layer)
 
 
 def _export_result_performance(

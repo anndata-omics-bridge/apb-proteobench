@@ -9,6 +9,7 @@ from apb2.api import ParsedLevels
 from apb_proteobench.annotation import ProteoBenchAnnotationParser
 from apb_proteobench.configuration.load import LoadedModule
 from apb_proteobench.configuration.schema import ModuleSettings
+from apb_proteobench.entrapment import EntrapmentAnalysisResult, EntrapmentAnalyzer
 from apb_proteobench.integration import (
     ALL_ABUNDANCE_LAYERS,
     LayerSelection,
@@ -101,6 +102,8 @@ class ProteoBenchAnalyzer:
 
 
 __all__ = [
+    "EntrapmentAnalysisResult",
+    "EntrapmentAnalyzer",
     "ProteoBenchAnalysisResult",
     "ProteoBenchAnalyzer",
 ]

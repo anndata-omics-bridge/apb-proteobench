@@ -31,7 +31,7 @@ Use the direct route for one final artifact. Use the staged route when intermedi
 Run everything from the raw vendor files:
 
 ```bash
-apb-proteobench run report.tsv proteins.fasta \
+apb-proteobench run quant report.tsv proteins.fasta \
     --params search-parameters.txt \
     --module module_settings.toml \
     --software spectronaut \
@@ -52,7 +52,7 @@ The aggregation call is conditional and belongs to `apb-aggregate`, not to this 
 The [end-to-end guide](workflow.md) explains both routes; the [CLI reference](cli.md) lists every
 argument and option.
 
-For the existing pMultiQC ProteoBench module, add `--x --result-performance reports/result_performance.csv` to `run` or `benchmark`. The compatibility export accepts one ion-level layer and publishes both the pMultiQC CSV and the sibling `<intermediate_hash>.json` ProteoBot datapoint while leaving pMultiQC and MultiQC unchanged.
+For the existing pMultiQC ProteoBench module, add `--result-performance reports/result_performance.csv` to `run` or `benchmark`. The compatibility export accepts one ion-level layer and publishes both the pMultiQC CSV and the sibling `<intermediate_hash>.json` ProteoBot datapoint while leaving pMultiQC and MultiQC unchanged.
 
 ## Python API
 
@@ -89,7 +89,7 @@ Both commands can additionally emit the canonical `result_performance.csv` pMult
 
 The annotation stage checks that the module describes every observation exactly once. It adds `raw_file`, `sample_name`, and `condition` to the configured level. HYE and HY are module configurations consumed by the same calculation rather than separate hard-coded modes.
 
-Scoring uses every layer listed under the APB `abundance` role by default. Pass `--x` for only the APB primary layer represented by AnnData `X`, or `--layer NAME` for one named abundance layer. Per-layer feature diagnostics live in `varm["proteobench:<layer-name>"]`; selection provenance, aggregate scores, method identities, role resolution, compatibility versions, and mapper provenance live in `uns["apb"]["proteobench"]`.
+Scoring uses one layer listed under the APB `abundance` role: `--layer NAME`, by default `X`, the APB primary layer represented by AnnData `X`. The Python API can still score every abundance layer. Per-layer feature diagnostics live in `varm["proteobench:<layer-name>"]`; selection provenance, aggregate scores, method identities, role resolution, compatibility versions, and mapper provenance live in `uns["apb"]["proteobench"]`.
 
 The [module guide](configuration.md) lists all packaged module documents and their current support
 status. The [result-layout guide](results.md) documents the stored annotation, diagnostics, scores,

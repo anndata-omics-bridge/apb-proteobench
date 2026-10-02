@@ -90,6 +90,7 @@ def test_cli_run_can_convert_only_ion_to_h5ad(tmp_path: Path) -> None:
     status = app(
         [
             "run",
+            "quant",
             str(data),
             str(fasta),
             "--params",
@@ -100,7 +101,6 @@ def test_cli_run_can_convert_only_ion_to_h5ad(tmp_path: Path) -> None:
             "diann",
             "--level",
             "ion",
-            "--x",
             "--output",
             str(target),
             "--result-performance",
@@ -151,6 +151,7 @@ def test_cli_run_refuses_existing_timing_file_before_scoring(tmp_path: Path) -> 
     status = app(
         [
             "run",
+            "quant",
             str(data),
             str(fasta),
             "--params",
@@ -161,7 +162,6 @@ def test_cli_run_refuses_existing_timing_file_before_scoring(tmp_path: Path) -> 
             "diann",
             "--level",
             "ion",
-            "--x",
             "--output",
             str(target),
             "--timings-dir",
@@ -188,6 +188,7 @@ def test_cli_run_starts_at_vendor_files_and_writes_final_result(
     status = app(
         [
             "run",
+            "quant",
             str(data),
             str(fasta),
             "--params",
@@ -198,7 +199,6 @@ def test_cli_run_starts_at_vendor_files_and_writes_final_result(
             "diann",
             "--output",
             str(target),
-            "--x",
             "--result-performance",
             str(result_performance),
         ],

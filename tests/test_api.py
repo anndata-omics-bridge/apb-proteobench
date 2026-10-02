@@ -547,7 +547,6 @@ def test_cli_benchmark_exports_and_reports_verbose_summary(tmp_path: Path) -> No
                     str(source),
                     str(module),
                     str(benchmarked),
-                    "--x",
                     "--result-performance",
                     str(benchmark_export),
                     "--verbose",
@@ -577,127 +576,38 @@ def test_cli_benchmark_exports_and_reports_verbose_summary(tmp_path: Path) -> No
     assert "level=ion layer=Intensity" in rendered
 
 
-def test_cli_default_scores_every_abundance_layer(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("layer_arguments", "expected"),
+    [
+        ([], ["proteobench:Intensity"]),
+        (["--layer", "X"], ["proteobench:Intensity"]),
+        (["--layer", "LFQ/Intensity"], ["proteobench:LFQ/Intensity"]),
+    ],
+)
+def test_cli_scores_one_layer_and_defaults_to_x(
+    tmp_path: Path,
+    layer_arguments: list[str],
+    expected: list[str],
+) -> None:
     source = tmp_path / "source.parquet"
     module = tmp_path / "module.toml"
     target = tmp_path / "scored.parquet"
-    verbose_target = tmp_path / "scored-verbose.parquet"
     write_module(module)
     write_parsed_levels(_multi_layer_result(), source)
-    concise_messages: list[str] = []
-    concise_sink = logger.add(concise_messages.append, format="{message}")
+    messages: list[str] = []
+    sink = logger.add(messages.append, format="{message}")
     try:
         status = app(
-            ["benchmark", str(source), str(module), str(target)],
+            ["benchmark", str(source), str(module), str(target), *layer_arguments],
             exit_on_error=False,
             result_action="return_value",
         )
     finally:
-        logger.remove(concise_sink)
-
-    verbose_messages: list[str] = []
-    verbose_sink = logger.add(verbose_messages.append, format="{message}")
-    try:
-        verbose_status = app(
-            [
-                "benchmark",
-                str(source),
-                str(module),
-                str(verbose_target),
-                "--verbose",
-            ],
-            exit_on_error=False,
-            result_action="return_value",
-        )
-    finally:
-        logger.remove(verbose_sink)
+        logger.remove(sink)
 
     assert status == 0
-    assert verbose_status == 0
-    assert list(read_parsed_levels(target).levels["ion"].varm) == [
-        "proteobench:Intensity",
-        "proteobench:LFQ/Intensity",
-    ]
-    concise = "".join(concise_messages)
-    verbose = "".join(verbose_messages)
-    for layer_name in ("Intensity", "LFQ/Intensity"):
-        assert f"scored level=ion layer={layer_name}" in concise
-        assert f"level=ion layer={layer_name}" in verbose
-
-
-def test_cli_x_scores_only_primary_layer(tmp_path: Path) -> None:
-    source = tmp_path / "source.parquet"
-    module = tmp_path / "module.toml"
-    target = tmp_path / "scored.parquet"
-    write_module(module)
-    write_parsed_levels(_multi_layer_result(), source)
-
-    status = app(
-        ["benchmark", str(source), str(module), str(target), "--x"],
-        exit_on_error=False,
-        result_action="return_value",
-    )
-
-    assert status == 0
-    assert list(read_parsed_levels(target).levels["ion"].varm) == ["proteobench:Intensity"]
-
-
-@pytest.mark.parametrize(
-    "arguments",
-    [
-        ["benchmark", "source.parquet", "module.toml", "target.parquet"],
-        [
-            "run",
-            "vendor.tsv",
-            "proteins.fasta",
-            "--params",
-            "params.txt",
-            "--module",
-            "module.toml",
-            "--output",
-            "target.parquet",
-        ],
-    ],
-)
-def test_cli_rejects_named_layer_combined_with_x(arguments: list[str]) -> None:
-    status = app(
-        [*arguments, "--layer", "Intensity", "--x"],
-        exit_on_error=False,
-        result_action="return_value",
-    )
-
-    assert status == 2
-
-
-@pytest.mark.parametrize(
-    "arguments",
-    [
-        ["benchmark", "source.parquet", "module.toml", "target.parquet"],
-        [
-            "run",
-            "vendor.tsv",
-            "proteins.fasta",
-            "--params",
-            "params.txt",
-            "--module",
-            "module.toml",
-            "--output",
-            "target.parquet",
-        ],
-    ],
-)
-def test_cli_requires_one_layer_for_result_performance(arguments: list[str]) -> None:
-    status = app(
-        [
-            *arguments,
-            "--result-performance",
-            "result_performance.csv",
-        ],
-        exit_on_error=False,
-        result_action="return_value",
-    )
-
-    assert status == 2
+    assert list(read_parsed_levels(target).levels["ion"].varm) == expected
+    assert f"scored level=ion layer={expected[0].removeprefix('proteobench:')}" in "".join(messages)
 
 
 def test_cli_rejects_result_performance_for_non_ion_level(tmp_path: Path) -> None:
@@ -722,7 +632,6 @@ def test_cli_rejects_result_performance_for_non_ion_level(tmp_path: Path) -> Non
             str(source),
             str(module),
             str(target),
-            "--x",
             "--result-performance",
             str(export),
         ],
@@ -766,20 +675,19 @@ def test_cli_exposes_only_complete_workflows() -> None:
     ("command", "descriptions"),
     [
         (
-            "benchmark",
+            ("benchmark",),
             (
                 "Existing APB2 result to annotate and score",
                 "Packaged ProteoBench module",
                 "New scored APB2 result; format selected from its suffix",
-                "One named APB abundance layer to score",
-                "Score only the APB primary layer represented by X",
+                "Abundance layer to score",
                 "Write result_performance.csv and sibling",
                 "ProteoBot",
                 "Report detailed diagnostics and scores",
             ),
         ),
         (
-            "run",
+            ("run", "quant"),
             (
                 "Vendor result table or directory",
                 "One or more protein FASTA files",
@@ -793,23 +701,43 @@ def test_cli_exposes_only_complete_workflows() -> None:
                 "Treat isoleucine and leucine as equivalent",
                 "Separator between protein accessions",
                 "One quantification level to convert",
-                "One named APB abundance layer to score",
-                "Score only the APB primary layer represented by X",
+                "Abundance layer to score",
                 "Write result_performance.csv and sibling",
                 "ProteoBot JSON",
                 "Promote APB2 layer-contract warnings to errors",
                 "Report detailed conversion and scoring",
             ),
         ),
+        (
+            ("run", "entrapment"),
+            (
+                "Vendor result table or directory",
+                "One or more protein FASTA files",
+                "Vendor search-parameter file",
+                "ProteoBench's entrapment peptide-pair file",
+                "Packaged entrapment module name",
+                "FASTA peptide-matching backend",
+                "Promote APB2 layer-contract warnings to errors",
+            ),
+        ),
+        (
+            ("run",),
+            (
+                "quant",
+                "Score one quantitative module",
+                "entrapment",
+                "Score one entrapment module",
+            ),
+        ),
     ],
 )
 def test_cli_help_describes_every_argument_and_parameter(
-    command: str,
+    command: tuple[str, ...],
     descriptions: tuple[str, ...],
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     app(
-        [command, "--help"],
+        [*command, "--help"],
         exit_on_error=False,
         result_action="return_value",
     )
@@ -818,6 +746,7 @@ def test_cli_help_describes_every_argument_and_parameter(
     assert all(description in rendered for description in descriptions)
     assert "--no-" not in rendered
     assert "--params-software" not in rendered
+    assert "--x " not in rendered
 
 
 def _object(value: JsonValue) -> dict[str, JsonValue]:

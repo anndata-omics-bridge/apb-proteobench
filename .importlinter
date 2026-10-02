@@ -13,7 +13,7 @@ layers =
     cli
     presentation | io
     api
-    integration
+    integration | entrapment
     annotation | workflow
     calculation
     configuration | data

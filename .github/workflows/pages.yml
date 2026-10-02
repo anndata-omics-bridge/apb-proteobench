@@ -36,6 +36,13 @@ jobs:
           ref: 3a7055870ad99b910b501b9747ff2e9ad0f55a61
           path: apb2
 
+      - name: Check out compatible APB Catalog
+        uses: actions/checkout@v6
+        with:
+          repository: anndata-omics-bridge/apb-catalog
+          ref: a6532e41c4db6dd696d96d3dee593483c4443ccd
+          path: apb-catalog
+
       - name: Check out compatible APB FASTA
         uses: actions/checkout@v6
         with:
