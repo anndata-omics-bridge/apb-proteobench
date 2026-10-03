@@ -9,13 +9,9 @@ import numpy as np
 import pandas as pd
 import polars as pl
 from numpy.typing import NDArray
-from pydantic import BaseModel, ConfigDict
 
 from apb_proteobench.calculation.contracts import QuantMatrix
-from apb_proteobench.calculation.mapping import (
-    map_reported_proteins,
-    render_proteobench_features,
-)
+from apb_proteobench.calculation.mapping import render_proteobench_features
 from apb_proteobench.configuration.schema import (
     ExpectedRatio,
     ModuleSettings,
@@ -45,34 +41,12 @@ class RunDesign:
     sample_names: tuple[str, ...]
 
 
-class _ResultModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-
-class AccessionMappingProvenance(_ResultModel):
-    """Use of the bundled ProteoBench accession mapper."""
-
-    asset: str
-    sha256: str
-    entries: int
-    matched_token_occurrences: int
-    unmatched_token_occurrences: int
-
-
-class ProteinMappingProvenance(_ResultModel):
-    """Protein normalization and species-mapping provenance."""
-
-    species_mapper: dict[str, str]
-    accession_mapper: AccessionMappingProvenance
-
-
 @dataclass(frozen=True)
 class IntermediateResult:
     """Feature-aligned storage table and ProteoBench-compatible legacy table."""
 
     varm: pd.DataFrame
     legacy: pd.DataFrame
-    protein_mapping: ProteinMappingProvenance
 
 
 @dataclass(frozen=True)
@@ -178,7 +152,8 @@ def align_runs(
 def compute_intermediate(
     matrix: QuantMatrix,
     feature_ids: pd.Index,
-    reported_proteins: pd.Series,
+    matched_organisms: pd.Series,
+    matches_contaminant: NDArray[np.bool_],
     module_settings: ModuleSettings,
     design: RunDesign,
     level: QuantificationLevel,
@@ -193,21 +168,19 @@ def compute_intermediate(
         raise ValueError("quantification rows and aligned sample design have different lengths")
     if columns != len(feature_ids):
         raise ValueError("quantification columns and feature identifiers have different lengths")
-    if len(reported_proteins) != len(feature_ids):
-        raise ValueError("reported proteins and feature identifiers have different lengths")
+    if len(matched_organisms) != len(feature_ids) or len(matches_contaminant) != len(feature_ids):
+        raise ValueError("FASTA matches and feature identifiers have different lengths")
 
     features = feature_ids.to_series()
-    normalized_proteins = reported_proteins.astype("string")
-    mapping_result = map_reported_proteins(normalized_proteins)
-    proteins = mapping_result.proteins
+    organisms = ";" + matched_organisms.astype("string").fillna("") + ";"
     compatibility_features = render_proteobench_features(features)
     compatibility_feature_ids = compatibility_features.to_numpy(dtype=str)
     species_flags = {
-        species: proteins.str.contains(flag, regex=True, na=False).to_numpy(dtype=bool)
+        species: organisms.str.contains(f";{flag.removeprefix('_')};", regex=False).to_numpy(bool)
         for flag, species in module_settings.species_mapper.items()
     }
     unique = np.sum(np.vstack(list(species_flags.values())), axis=0, dtype=np.int64)
-    contaminants = _contaminants(proteins)
+    contaminants = np.asarray(matches_contaminant, dtype=np.bool_)
     decoys = np.zeros(len(feature_ids), dtype=np.bool_)
 
     conditions = tuple(sorted(set(design.conditions.tolist())))
@@ -254,16 +227,6 @@ def compute_intermediate(
     return IntermediateResult(
         varm=varm,
         legacy=legacy,
-        protein_mapping=ProteinMappingProvenance(
-            species_mapper=dict(module_settings.species_mapper),
-            accession_mapper=AccessionMappingProvenance(
-                asset="ProteoBench mapper.csv",
-                sha256=mapping_result.mapper_sha256,
-                entries=mapping_result.mapper_entries,
-                matched_token_occurrences=mapping_result.matched_token_occurrences,
-                unmatched_token_occurrences=mapping_result.unmatched_token_occurrences,
-            ),
-        ),
     )
 
 
@@ -570,10 +533,6 @@ def _empirical_centers(
         median[included] = centers.get_column("median").to_numpy()
         mean[included] = centers.get_column("mean").to_numpy()
     return {"median": median, "mean": mean}
-
-
-def _contaminants(proteins: pd.Series) -> NDArray[np.bool_]:
-    return proteins.str.contains("Cont_", regex=False, na=False).to_numpy(dtype=bool)
 
 
 def _matrix_shape(matrix: QuantMatrix) -> tuple[int, int]:

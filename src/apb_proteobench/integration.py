@@ -6,7 +6,7 @@ import json
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass, replace
-from typing import Literal, Protocol, cast
+from typing import cast
 from urllib.parse import quote
 
 import numpy as np
@@ -14,9 +14,12 @@ import pandas as pd
 import polars as pl
 from apb2.api import ParsedLevels
 from apb2.result_facade import (
+    ALL_ABUNDANCE_LAYERS,
     JsonValue,
+    LayerSelection,
     ParsedLevel,
     ParsedLevelName,
+    ResolvedLayerSelection,
     quantitative_layer_values,
 )
 
@@ -49,81 +52,6 @@ class ResolvedRoles:
             "Sample name": "obs:sample_name",
             "Condition": "obs:condition",
         }
-
-
-@dataclass(frozen=True, slots=True)
-class ResolvedLayerSelection:
-    """Persistable resolution of one requested layer-selection policy."""
-
-    mode: Literal["primary", "named_abundance", "all_abundance"]
-    layer_names: tuple[str, ...]
-    requested_layer: str | None = None
-    fallback: Literal["primary_missing_abundance_roles"] | None = None
-
-    def as_json(self) -> dict[str, JsonValue]:
-        """Return common provenance; selected quantities are the persisted scoring keys."""
-        document: dict[str, JsonValue] = {"selection_mode": self.mode}
-        if self.fallback is not None:
-            document["selection_fallback"] = self.fallback
-        return document
-
-
-class LayerSelection(Protocol):
-    """Select quantitative layers from one configured APB level."""
-
-    def resolve(self, level: ParsedLevel, /) -> ResolvedLayerSelection:
-        """Validate and return the ordered selected layer names."""
-        ...
-
-
-@dataclass(frozen=True, slots=True)
-class PrimaryLayer:
-    """Select the APB primary layer represented by AnnData ``X``."""
-
-    def resolve(self, level: ParsedLevel, /) -> ResolvedLayerSelection:
-        """Return the validated primary layer."""
-        _require_layer(level, level.primary_layer_name)
-        return ResolvedLayerSelection(mode="primary", layer_names=(level.primary_layer_name,))
-
-
-@dataclass(frozen=True, slots=True)
-class NamedAbundanceLayer:
-    """Select one named layer carrying the semantic abundance role."""
-
-    name: str
-
-    def resolve(self, level: ParsedLevel, /) -> ResolvedLayerSelection:
-        """Return the named layer after validating its semantic role."""
-        _require_layer(level, self.name)
-        abundance = _abundance_layers(level)
-        if abundance is None or self.name not in abundance:
-            raise ValueError(f"layer {self.name!r} does not carry the stored abundance role")
-        return ResolvedLayerSelection(
-            mode="named_abundance",
-            layer_names=(self.name,),
-            requested_layer=self.name,
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class AllAbundanceLayers:
-    """Select every stored abundance layer, falling back to primary for old results."""
-
-    def resolve(self, level: ParsedLevel, /) -> ResolvedLayerSelection:
-        """Return abundance layers in their authored order."""
-        abundance = _abundance_layers(level)
-        if not abundance:
-            _require_layer(level, level.primary_layer_name)
-            return ResolvedLayerSelection(
-                mode="all_abundance",
-                layer_names=(level.primary_layer_name,),
-                fallback="primary_missing_abundance_roles",
-            )
-        return ResolvedLayerSelection(mode="all_abundance", layer_names=abundance)
-
-
-PRIMARY_LAYER = PrimaryLayer()
-ALL_ABUNDANCE_LAYERS = AllAbundanceLayers()
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,6 +138,9 @@ def extract_layer(
     _require_layer(level, layer_name)
     feature = _single_feature_key(level)
     proteins = _protein_role(level)
+    fasta = level.varm.get("fasta_validation")
+    if fasta is None or "fasta_matches_contaminant" not in fasta.columns:
+        raise ValueError("ProteoBench scoring requires apb-fasta peptide verification")
     matrix = (
         quantitative_layer_values(level, layer_name).to_numpy().astype(np.float64, copy=False).T
     )
@@ -221,6 +152,8 @@ def extract_layer(
             matrix=matrix,
             feature_ids=pd.Index(level.var.frame.get_column(feature).cast(pl.String).to_list()),
             reported_proteins=level.var.frame.get_column(proteins).to_pandas(),
+            matched_organisms=fasta.get_column("fasta_matching_organisms").to_pandas(),
+            matches_contaminant=fasta.get_column("fasta_matches_contaminant").to_numpy(),
             level=level_name,
         ),
         roles=ResolvedRoles(
@@ -309,14 +242,12 @@ def _layer_result_record(
     result: ScoredLayerResult,
 ) -> dict[str, JsonValue]:
     score_document = json.loads(result.analysis.scores.model_dump_json())
-    mapping_document = result.analysis.diagnostics.protein_mapping.model_dump(mode="json")
     if not isinstance(score_document, dict):
         raise TypeError("ProteoBench result serialization did not produce JSON objects")
     return {
         "layer_name": result.layer_name,
         "diagnostics": f"varm:{result.diagnostics_slot}",
         "column_roles": result.roles.as_json(),
-        "protein_mapping": cast(dict[str, JsonValue], mapping_document),
         "scores": cast(dict[str, JsonValue], score_document),
     }
 
@@ -331,7 +262,7 @@ def _single_feature_key(level: ParsedLevel) -> str:
 
 
 def _protein_role(level: ParsedLevel) -> str:
-    roles = _object(level.uns.get("column_roles"), "APB column_roles")
+    roles = level.var.roles
     value = roles.get("protein_assignment")
     if not isinstance(value, str) or value not in level.var.frame.columns:
         raise ValueError("ProteoBench scoring requires a stored protein_assignment column role")
@@ -363,28 +294,6 @@ def _metadata_layer_key(layer_name: str, /) -> str:
 def _require_layer(level: ParsedLevel, name: str, /) -> None:
     if name not in level.layers:
         raise ValueError(f"configured APB level has no layer {name!r}")
-
-
-def _abundance_layers(level: ParsedLevel, /) -> tuple[str, ...] | None:
-    raw_roles = level.uns.get("layer_roles")
-    if raw_roles is None:
-        return None
-    if not isinstance(raw_roles, dict):
-        raise ValueError("APB layer_roles is not an object")
-    raw_abundance = raw_roles.get("abundance")
-    if raw_abundance is None:
-        return None
-    if not isinstance(raw_abundance, list) or not all(
-        isinstance(item, str) for item in raw_abundance
-    ):
-        raise ValueError("APB abundance layer role is not a string list")
-    abundance = tuple(cast(list[str], raw_abundance))
-    if len(abundance) != len(set(abundance)):
-        raise ValueError("APB abundance layer role contains duplicate layer names")
-    missing = [name for name in abundance if name not in level.layers]
-    if missing:
-        raise ValueError(f"APB abundance layer role references missing layers: {missing}")
-    return abundance
 
 
 def _object(value: JsonValue | None, role: str) -> dict[str, JsonValue]:

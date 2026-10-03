@@ -19,7 +19,7 @@ from numpy.typing import NDArray
 
 RESULT_PERFORMANCE_FILENAME = "result_performance.csv"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-_HASH_VERSION = b"apb-proteobench-content-v1\0"
+_HASH_VERSION = b"apb-proteobench-content-v2\0"
 _REQUIRED_COLUMNS = frozenset(
     {
         "precursor ion",
@@ -100,7 +100,6 @@ class SubmissionContent:
     raw_files: tuple[str, ...]
     conditions: tuple[str, ...]
     settings: Mapping[str, object]
-    mapper_sha256: str
 
 
 class _Syncable(Protocol):
@@ -254,7 +253,6 @@ def content_hash(content: SubmissionContent) -> str:
 
     settings = json.dumps(content.settings, sort_keys=True, separators=(",", ":"), allow_nan=False)
     put_text(settings)
-    put_text(content.mapper_sha256)
     observation_order = sorted(range(rows), key=content.raw_files.__getitem__)
     feature_order = sorted(range(columns), key=content.feature_ids.__getitem__)
     digest.update(struct.pack("<QQ", rows, columns))

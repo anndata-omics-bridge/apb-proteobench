@@ -60,7 +60,7 @@ named = ProteoBenchAnalyzer(
 ).analyze(parsed)
 ```
 
-`ALL_ABUNDANCE_LAYERS` preserves declared order and records its fallback when older input has no abundance-role metadata. `PRIMARY_LAYER` selects `ParsedLevel.primary_layer_name`; `NamedAbundanceLayer` requires the named layer to exist and carry the stored abundance role.
+`ALL_ABUNDANCE_LAYERS` preserves declared order and requires at least one layer with the abundance role. `PRIMARY_LAYER` selects `ParsedLevel.primary_layer_name`; `NamedAbundanceLayer` requires the named layer to exist and carry the stored abundance role.
 
 ## Substitute calculation methods
 

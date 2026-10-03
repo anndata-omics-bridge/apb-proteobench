@@ -22,8 +22,8 @@ Scoring persists schema version 3, with common provenance on the root and layer-
 | Location | Contents |
 | --- | --- |
 | `varm["proteobench:<layer-name>"]` | feature-aligned mixed-species diagnostics for one selected layer |
-| Root `uns["apb"]["proteobench"]["provenance"]["scoring"]` | versions, method identities, selection mode and any fallback reason |
-| Level `uns["apb"]["proteobench"]["scoring"]["Intensity"]` | retained quantity name, roles, diagnostics reference, scores and protein-mapping diagnostics |
+| Root `uns["apb"]["proteobench"]["provenance"]["scoring"]` | versions, method identities, selection mode |
+| Level `uns["apb"]["proteobench"]["scoring"]["Intensity"]` | retained quantity name, roles, diagnostics reference and scores |
 
 The feature diagnostics have exactly one row per variable in the selected level. Scores include the
 complete cutoff-indexed result plus the configured default-cutoff projection.

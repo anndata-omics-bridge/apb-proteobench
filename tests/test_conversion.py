@@ -72,10 +72,14 @@ def _write_benchmark_diann_input(folder: Path) -> tuple[Path, Path, Path, Path]:
         encoding="utf-8",
     )
     fasta = folder / "proteins.fasta"
-    fasta.write_text(
-        ">sp|ALL|ALL All peptides\nMPEPTIDEKYEASTPEPKECILIPEPKCONTPEPKMIXPEPKNKPEPTK\n",
-        encoding="utf-8",
-    )
+    entries = ("P1|P1_HUMAN", "P2|P2_YEAST", "P3|P3_ECOLI", "Cont_P4|P4_HUMAN", "P5|P5_HUMAN")
+    sequences = ("MPEPTIDEK", "YEASTPEPK", "ECILIPEPK", "CONTPEPK", "MIXPEPK")
+    records = [
+        *zip(entries, sequences, strict=True),
+        ("P5Y|P5_YEAST", "MIXPEPK"),
+        ("P6|P6_UNKNOWN", "NKPEPTK"),
+    ]
+    fasta.write_text("".join(f">sp|{entry}\n{sequence}\n" for entry, sequence in records))
     module = folder / "module.toml"
     write_module(module)
     return data, parameters, fasta, module

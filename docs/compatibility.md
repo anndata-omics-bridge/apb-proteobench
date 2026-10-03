@@ -2,27 +2,19 @@
 
 apb-proteobench reproduces ProteoBench's quantification scores from APB2 results. The calculation is the same; the inputs can differ in two places: which protein column decides feature exclusion, and which abundance layer is scored. Both are listed here with their measured effect.
 
-## Feature exclusion uses the protein-assignment column
+## Feature exclusion uses FASTA matches
 
-Scoring drops contaminant features (a `Cont_` protein) and features of more than one species (`min_count_multispec`). APB decides both from the column the APB2 vendor rule gives the `protein_assignment` role. ProteoBench decides them from each tool's column mapped to `Proteins`.
+Scoring drops contaminant features and features of more than one species (`min_count_multispec`). APB decides both from apb-fasta's `varm["fasta_validation"]`: every FASTA protein containing the feature's peptide gives `fasta_matching_organisms` and `fasta_matches_contaminant`. ProteoBench decides them from each tool's column mapped to `Proteins`.
 
-| Tool | ProteoBench `Proteins` | APB `protein_assignment` |
-| --- | --- | --- |
-| DIA-NN | `Protein.Ids` | `Protein.Group` |
-| FragPipe | `Protein` plus `Mapped Proteins` | `Protein` |
-| AlphaDIA | `genes` | `pg.proteins` (2.x) |
-| MaxQuant, PEAKS, Sage, Spectronaut, i2MassChroQ, WOMBAT | same column | same column |
+For DIA-NN, whose `Protein.Ids` lists every protein containing the peptide, both rules agree. Tools whose `Proteins` column is a protein group or a tool-specific list lose features that APB now recognises as shared with a contaminant or a second species.
 
-DIA-NN's `Protein.Ids` lists every protein containing the peptide; `Protein.Group` is DIA-NN's parsimonious group, which lists several accessions only for proteins the observed precursors cannot distinguish. A precursor whose `Protein.Ids` include a contaminant or a second species is therefore dropped by ProteoBench but kept by APB when parsimony removed that protein from the group.
+Measured against the stored ProteoBench datapoints of 219 corpus submissions, `nr_feature` at cutoff 1:
 
-Measured on one DIA-NN 2.3 plasma submission (22,504 precursors):
-
-- APB keeps 657 precursors that ProteoBench drops; ProteoBench keeps 4 that APB drops
-- 458 of the 657 have a `Cont_` protein only in `Protein.Ids`
-- 193 have a second species only in `Protein.Ids`
-- Over the 12 cutoffs, `nr_feature` is up to 4.3 % higher in APB; spike-in and HUMAN errors differ by up to 1.0 %
-
-Across the 19 DIA-NN and FragPipe plasma submissions, scored on `Precursor_Quantity`, the stored ProteoBench datapoints differ by up to 5.2 % in `nr_feature`, 2.3 % in HUMAN error and 1.3 % in spike-in error; AlphaDIA and PEAKS are identical.
+- DIA-NN and FragPipe (DIA-NN quant): median difference 0.1–0.3 %; before this rule, 0.5–3.9 %
+- Plasma DIA-NN: 2.9 % before, 0.34 % after
+- MaxQuant, AlphaDIA, Spectronaut, PEAKS, Sage, AlphaPept, FragPipe (DDA), quantms: previously within 0.7 % and mostly exact, now up to 3.3 %
+- MaxQuant: its 0.2 % of features without a FASTA match are its reversed decoys (`REV__`), which ProteoBench excludes as decoys too
+- i2MassChroQ: 21–24 %, because APB2's i2MassChroQ rule keeps modifications in `ProForma_peptide`, so modified peptides match no protein
 
 ## The scored layer is chosen by the caller
 

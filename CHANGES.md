@@ -1,6 +1,14 @@
 # Changes
 
+## 2026-10-03
+
+- Use APB2 abundance selections and typed var roles; missing abundance roles fail instead of selecting primary.
+
 ## Unreleased
+
+- `entrapment_dia_astral` ships an SDRF for its three HeLa runs; the TOML names it with `sdrf`, and `EntrapmentModuleSettings` records `sdrf` and `sdrf_sha256`, so entrapment provenance identifies it.
+
+- **Breaking:** species and contaminants come from apb-fasta's per-feature FASTA matches (`varm["fasta_validation"]`: `fasta_matching_organisms`, `fasta_matches_contaminant`) instead of the `protein_assignment` column mapped through ProteoBench's `mapper.csv`. Scoring therefore requires peptide verification and fails without it. Deleted `mapper.csv`, `map_reported_proteins` and the level record `protein_mapping`, whose remaining `species_mapper` duplicated the root configuration. The ProteoBot content hash drops the mapper checksum and moves to version 2.
 
 - **Breaking:** `run` is now `apb-proteobench run quant`, with unchanged options; `apb-proteobench run entrapment` scores ProteoBench's entrapment module (`entrapment_dia_astral`) from vendor files, a FASTA and ProteoBench's pair file. `EntrapmentAnalyzer` and `EntrapmentAnalysisResult` are the in-memory API; `load_packaged_entrapment_module` and `read_pairs` load the module and pair file. Each precursor q-value kind that apb-catalog's `proteobench_entrapment` set offers is scored (DIA-NN `q_value`, `library_q_value`, `global_q_value`). Ported from ProteoBench `1147290`; equal q-values share a rank, which differs from ProteoBench only for tied entrapment/target pairs. apb-catalog becomes a dependency.
 

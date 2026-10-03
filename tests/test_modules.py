@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from apb_proteobench.configuration.entrapment import load_packaged_entrapment_module
 from apb_proteobench.configuration.load import (
     available_modules,
     load_packaged_module,
@@ -43,7 +44,7 @@ EXPECTED_SDRF_HASHES = {
 EXPECTED_PACKAGED_MODULE_HASHES = {
     **EXPECTED_SUPPORTED_MODULE_HASHES,
     "denovo_dda_hcd": "d53cd86c02228c57cc35aba996e44c4739ce49e4de8fe57bf556a266d18460b7",
-    "entrapment_dia_astral": ("dfaa17b3474d91a69eb159ff6a05c59bc89839ab05791f4e8539984d6529f0f2"),
+    "entrapment_dia_astral": ("bc7d4d4ab42ed5273512d6eae8ce161d6c2414024d24de419fd9bac9911cd7a5"),
 }
 
 
@@ -115,7 +116,7 @@ def test_peptidoform_module_names_the_qexactive_raw_files() -> None:
     assert peptidoform[0].raw_file_aliases == ["abundance_A_1", "A_1"]
 
 
-@pytest.mark.parametrize("name", list(EXPECTED_SDRF_HASHES))
+@pytest.mark.parametrize("name", [*EXPECTED_SDRF_HASHES, "entrapment_dia_astral"])
 def test_packaged_sdrf_passes_the_sdrf_proteomics_validator(name: str) -> None:
     resource = files("apb_proteobench.data.modules").joinpath(f"{name}.sdrf.tsv")
     templates = ["-t", "ms-proteomics"]
@@ -147,3 +148,10 @@ def test_packaged_but_unsupported_module_is_explicit(name: str) -> None:
 def test_unknown_packaged_module_reports_available_names() -> None:
     with pytest.raises(ValueError, match="unknown packaged ProteoBench module 'missing'"):
         load_packaged_module("missing")
+
+
+def test_entrapment_module_records_its_sdrf() -> None:
+    module = load_packaged_entrapment_module("entrapment_dia_astral")
+
+    assert module.sdrf == "entrapment_dia_astral.sdrf.tsv"
+    assert module.sdrf_sha256 == "5ff1a9af225505a5631126e4753aa7ca32a377d69afe422c2fe58535894ca72f"

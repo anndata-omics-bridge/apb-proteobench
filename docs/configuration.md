@@ -38,7 +38,8 @@ The SDRF path is relative to the TOML's directory. APB2 reads it through `apb2.a
 ## Fields used by scoring
 
 - Each species' expected A/B ratio is the quotient of its condition A and condition B quantities. Every scored species needs one quantity per condition, in one unit, identical across that condition's rows.
-- `[species.<NAME>]` links an SDRF organism to the FASTA header `suffix` that marks its proteins, and to an optional plot `color`. Every spiked organism needs an entry.
+- `[species.<NAME>]` links an SDRF organism to the FASTA entry-name `suffix` that marks its proteins, and to an optional plot `color`. Every spiked organism needs an entry.
+- Species and contaminants come from apb-fasta's `varm["fasta_validation"]`, so scoring requires peptide verification. A feature belongs to a species when a FASTA protein containing its peptide has that organism (`suffix` without `_`, e.g. `HUMAN`). It is a contaminant when any such protein is.
 - `[run_aliases]` lists further run names that vendor tables report, keyed by SDRF data file. An observation may match a run's identifier, an alias, or its sample name; successful matching always records the module's canonical metadata.
 - `min_count_multispec` controls exclusion of features assigned to multiple species.
 - `level` selects the single APB2 quantification level to annotate and score.
@@ -85,7 +86,7 @@ upstream catalogue:
 | Name | Module | Current status |
 | --- | --- | --- |
 | `denovo_dda_hcd` | de novo DDA HCD | different schema; not implemented |
-| `entrapment_dia_astral` | DIA Astral entrapment | different schema; not implemented |
+| `entrapment_dia_astral` | DIA Astral entrapment | scored by `run entrapment`; TOML plus SDRF of the three HeLa runs |
 
 Use `packaged_module_names()` to inventory all 11 documents. `available_modules()` deliberately
 returns only the nine modules accepted by `load_packaged_module()` and the current quantitative

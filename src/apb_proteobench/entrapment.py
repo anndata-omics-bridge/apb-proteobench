@@ -99,9 +99,8 @@ def _precursors(
         table = catalog.layer(level_name, concept="confidence", kind=kind)
         if table is None:
             raise EntrapmentError(f"the catalogue offers kind {kind!r} but resolves no layer")
-        runs = [name for name in table.values.columns if name not in table.var_key_columns]
-        best = table.values.select(
-            *table.var_key_columns, pl.min_horizontal(runs).cast(pl.Float64).alias(kind)
+        best = level.var.frame.select(keys).hstack(
+            table.values.select(pl.min_horizontal(pl.all()).cast(pl.Float64).alias(kind))
         )
         frame = frame.join(best, on=keys, how="left", maintain_order="left")
     return frame, kinds

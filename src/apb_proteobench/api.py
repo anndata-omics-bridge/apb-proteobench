@@ -5,15 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from apb2.api import ParsedLevels
+from apb2.result_facade import ALL_ABUNDANCE_LAYERS, LayerSelection, ResolvedLayerSelection
 
 from apb_proteobench.annotation import ProteoBenchAnnotationParser
 from apb_proteobench.configuration.load import LoadedModule
 from apb_proteobench.configuration.schema import ModuleSettings
 from apb_proteobench.entrapment import EntrapmentAnalysisResult, EntrapmentAnalyzer
 from apb_proteobench.integration import (
-    ALL_ABUNDANCE_LAYERS,
-    LayerSelection,
-    ResolvedLayerSelection,
     ScoredLayerResult,
     diagnostics_slot,
     extract_layer,

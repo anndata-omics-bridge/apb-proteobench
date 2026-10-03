@@ -89,7 +89,7 @@ Both commands can additionally emit the canonical `result_performance.csv` pMult
 
 The annotation stage checks that the module describes every observation exactly once. It adds `raw_file`, `sample_name`, and `condition` to the configured level. HYE and HY are module configurations consumed by the same calculation rather than separate hard-coded modes.
 
-Scoring uses one layer listed under the APB `abundance` role: `--layer NAME`, by default `X`, the APB primary layer represented by AnnData `X`. The Python API can still score every abundance layer. Per-layer feature diagnostics live in `varm["proteobench:<layer-name>"]`; selection provenance, aggregate scores, method identities, role resolution, compatibility versions, and mapper provenance live in `uns["apb"]["proteobench"]`.
+Scoring uses one layer listed under the APB `abundance` role: `--layer NAME`, by default `X`, the APB primary layer represented by AnnData `X`. The Python API can still score every abundance layer. Per-layer feature diagnostics live in `varm["proteobench:<layer-name>"]`; selection provenance, aggregate scores, method identities, role resolution, compatibility versions, and species-mapping provenance live in `uns["apb"]["proteobench"]`.
 
 The [module guide](configuration.md) lists all packaged module documents and their current support
 status. The [result-layout guide](results.md) documents the stored annotation, diagnostics, scores,

@@ -17,6 +17,7 @@ from apb2.api import (
     read_parsed_levels,
     write_parsed_levels,
 )
+from apb2.result_facade import PRIMARY_LAYER, LayerSelection, NamedAbundanceLayer
 from apb_fasta.api import FastaAnnotationResult, FastaAnnotator
 from apb_fasta.calculation.results import FastaAnnotationReports
 from apb_fasta.configuration import FastaAnnotationParameters
@@ -37,9 +38,6 @@ from apb_proteobench.calculation.metrics import PROTEOBENCH_SOURCE_REVISION
 from apb_proteobench.configuration.entrapment import load_packaged_entrapment_module
 from apb_proteobench.configuration.load import LoadedModule, load_module, load_packaged_module
 from apb_proteobench.integration import (
-    PRIMARY_LAYER,
-    LayerSelection,
-    NamedAbundanceLayer,
     extract_layer,
 )
 from apb_proteobench.io.result_performance import (
@@ -585,7 +583,6 @@ def _export_result_performance(
             raw_files=design.raw_files,
             conditions=tuple(design.conditions),
             settings=settings,
-            mapper_sha256=selected.analysis.diagnostics.protein_mapping.accession_mapper.sha256,
         ),
     )
     logger.info("wrote pMultiQC input {}", written.csv)

@@ -34,10 +34,6 @@ def test_hye_intermediate_matches_legacy_golden() -> None:
         check_dtype=False,
     )
     assert result.varm["included"].tolist() == [True, True, True, False, False, False]
-    assert result.protein_mapping.accession_mapper.entries == 38_233
-    assert result.protein_mapping.accession_mapper.sha256 == (
-        "032034e2f9bea3fc41290c7461417280b1d37cec41ee8ef9a44c250781a4b997"
-    )
 
 
 def test_hy_uses_the_same_configuration_driven_calculation() -> None:
@@ -82,6 +78,8 @@ def test_single_cell_hy_module_matches_hand_computed_ratios() -> None:
         matrix=np.asarray([[12.0, 2.0]] * 3 + [[10.0, 10.0]] * 3),
         feature_ids=pd.Index(["H/2", "Y/2"]),
         reported_proteins=pd.Series(["P1_HUMAN", "P2_YEAST"]),
+        matched_organisms=pd.Series(["HUMAN", "YEAST"]),
+        matches_contaminant=np.array([False, False]),
         level="ion",
     )
 
@@ -105,7 +103,8 @@ def test_dense_and_sparse_diagnostics_are_equal() -> None:
     dense = compute_intermediate(
         inputs.matrix,
         inputs.feature_ids,
-        inputs.reported_proteins,
+        inputs.matched_organisms,
+        inputs.matches_contaminant,
         configuration,
         design,
         "ion",
@@ -113,7 +112,8 @@ def test_dense_and_sparse_diagnostics_are_equal() -> None:
     sparse_result = compute_intermediate(
         sparse.csr_matrix(np.nan_to_num(matrix_values(), nan=0.0)),
         inputs.feature_ids,
-        inputs.reported_proteins,
+        inputs.matched_organisms,
+        inputs.matches_contaminant,
         configuration,
         design,
         "ion",

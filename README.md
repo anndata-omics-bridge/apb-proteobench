@@ -36,8 +36,8 @@ To feed the existing pMultiQC ProteoBench module and retain the matching ProteoB
 For optional operation-level timing files, pass `--timings-dir DIR` to `run`. It writes separate JSON files for APB2 conversion, FASTA verification, and ProteoBench benchmarking without changing the scored result or Studio's process-level runtime measurement.
 
 The package owns all 11 ProteoBench module TOMLs: the nine quantitative HYE/HY and plasma modules
-and the newer de novo and entrapment documents. The latter two are explicitly packaged for planned
-support but are not accepted by the current quantitative scorer. Every quantitative module's scores
+and the newer de novo and entrapment documents. Entrapment is scored by `run entrapment`; de novo
+is packaged for planned support. Neither is accepted by the quantitative scorer. Every quantitative module's scores
 include ProteoBench's plasma metrics; see [results](docs/results.md). Stable names,
 support status, and the Python loading API are documented under
 [module configuration](docs/configuration.md).

@@ -36,7 +36,7 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 - The only permitted APB dependencies are `apb2` and `apb-fasta`. Never import `apb_aggregate` or
   any other sibling APB tool; reach aggregation through the `apb-aggregate` CLI as a separate step.
 - Keep HYE and HY configuration-driven. Do not add benchmark-name branches or preset catalogues.
-- Preserve the tool-owned layout: root `proteobench.provenance.annotation` and `.scoring` hold common configuration; level `proteobench.annotation` holds matching evidence and `.scoring[quantity_name]` holds each layer's roles, mappings, scores and `varm` reference. Scoring provenance is schema 3. No `layers` wrapper, `X` score alias or duplicated selection list; keep reversible layer-name escaping. See [result layout](docs/results.md).
+- Preserve the tool-owned layout: root `proteobench.provenance.annotation` and `.scoring` hold common configuration; level `proteobench.annotation` holds matching evidence and `.scoring[quantity_name]` holds each layer's roles, scores and `varm` reference. Scoring provenance is schema 3. No `layers` wrapper, `X` score alias or duplicated selection list; keep reversible layer-name escaping. See [result layout](docs/results.md).
 
 ## Compatibility policy
 

@@ -35,7 +35,6 @@ def _submission_content() -> SubmissionContent:
         raw_files=("run_b", "run_a"),
         conditions=("B", "A"),
         settings={"species_mapper": {"_HUMAN": "HUMAN", "_YEAST": "YEAST"}},
-        mapper_sha256="mapper-v1",
     )
 
 
@@ -161,7 +160,7 @@ def test_write_result_performance_bundle_writes_proteobot_hash_json(tmp_path: Pa
     assert written.csv == target
     digest = written.proteobot_json.stem
     assert written.proteobot_json == target.with_name(f"{digest}.json")
-    assert digest == "e13b3ab7af6f9c75d14cb20f2142c5e461e5f4c0e4b055f11e421acc037f2c1a"
+    assert digest == "3c52330156ef084849e0a7993cb986a76fc4ac6b2c9631f88ecdab93e75106ad"
     assert json.loads(written.proteobot_json.read_text(encoding="utf-8")) == {
         **datapoint,
         "id": f"Synthetic_{digest[:12]}",
@@ -182,7 +181,6 @@ def test_content_hash_follows_values_and_identities_not_axis_order(tmp_path: Pat
         raw_files=("run_a", "run_b"),
         conditions=("A", "B"),
         settings=content.settings,
-        mapper_sha256=content.mapper_sha256,
     )
     changed_values = SubmissionContent(
         matrix=np.array([[1.0, np.nan], [2.0, 0.5]]),
@@ -191,7 +189,6 @@ def test_content_hash_follows_values_and_identities_not_axis_order(tmp_path: Pat
         raw_files=content.raw_files,
         conditions=content.conditions,
         settings=content.settings,
-        mapper_sha256=content.mapper_sha256,
     )
 
     hashes = [
@@ -212,8 +209,7 @@ def test_content_hash_changes_with_scoring_inputs(tmp_path: Path) -> None:
     changed_proteins = replace(content, reported_proteins=pd.Series(["P2_HUMAN", "P1_HUMAN"]))
     changed_conditions = replace(content, conditions=("A", "A"))
     changed_settings = replace(content, settings={"species_mapper": {"_HUMAN": "HUMAN"}})
-    changed_mapper = replace(content, mapper_sha256="mapper-v2")
-    inputs = (content, changed_proteins, changed_conditions, changed_settings, changed_mapper)
+    inputs = (content, changed_proteins, changed_conditions, changed_settings)
     hashes = {
         write_result_performance_bundle(
             _ion_intermediate(),

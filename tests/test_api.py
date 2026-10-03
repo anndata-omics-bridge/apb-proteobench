@@ -10,10 +10,14 @@ import polars as pl
 import pytest
 from apb2.api import ParsedLevels, read_parsed_levels, write_parsed_levels
 from apb2.result_facade import (
+    ALL_ABUNDANCE_LAYERS,
+    PRIMARY_LAYER,
     AnnotationTable,
     FeatureRelation,
     FinalLayerTable,
     JsonValue,
+    LayerSelection,
+    NamedAbundanceLayer,
 )
 from loguru import logger
 
@@ -25,12 +29,6 @@ from apb_proteobench.calculation.metrics import ProteoBenchScores
 from apb_proteobench.cli import app
 from apb_proteobench.configuration.load import load_module
 from apb_proteobench.configuration.schema import ModuleSettings
-from apb_proteobench.integration import (
-    ALL_ABUNDANCE_LAYERS,
-    PRIMARY_LAYER,
-    LayerSelection,
-    NamedAbundanceLayer,
-)
 from apb_proteobench.workflow import (
     MixedSpeciesDiagnostics,
     ProteoBenchCompatibleScoring,
@@ -70,7 +68,10 @@ def test_public_api_is_an_in_memory_proteobench_boundary() -> None:
     }
 
     assert {item for item in imported if item[0].startswith("apb2")} == {
-        ("apb2.api", "ParsedLevels")
+        ("apb2.api", "ParsedLevels"),
+        ("apb2.result_facade", "ALL_ABUNDANCE_LAYERS"),
+        ("apb2.result_facade", "LayerSelection"),
+        ("apb2.result_facade", "ResolvedLayerSelection"),
     }
     assert not any(
         module == "pathlib" or module.startswith(("apb_fasta", "protein_fasta"))
@@ -239,15 +240,14 @@ def _multi_layer_result() -> ParsedLevels:
     values = level.layers["Intensity"].values
     level.layers["LFQ/Intensity"] = FinalLayerTable(
         layer_name="LFQ/Intensity",
-        var_key_columns=("feature",),
-        values=values.clone(),
+        values=(values.clone()).drop(("feature",), strict=False),
+        semantic_roles=("abundance",),
     )
     level.layers["QValue"] = FinalLayerTable(
         layer_name="QValue",
-        var_key_columns=("feature",),
-        values=values.clone(),
+        values=(values.clone()).drop(("feature",), strict=False),
+        semantic_roles=(),
     )
-    level.uns["layer_roles"] = {"abundance": ["Intensity", "LFQ/Intensity"]}
     return parsed
 
 
@@ -272,6 +272,7 @@ def test_default_selection_scores_every_abundance_layer(tmp_path: Path) -> None:
     restored = read_parsed_levels(target)
     assert list(result.layers) == ["Intensity", "LFQ/Intensity"]
     assert set(restored.levels["ion"].varm) == {
+        "fasta_validation",
         "proteobench:Intensity",
         "proteobench:LFQ/Intensity",
     }
@@ -292,7 +293,7 @@ def test_primary_selection_scores_only_x_layer(tmp_path: Path) -> None:
 
     restored = read_parsed_levels(target)
     assert list(result.layers) == ["Intensity"]
-    assert set(restored.levels["ion"].varm) == {"proteobench:Intensity"}
+    assert set(restored.levels["ion"].varm) == {"fasta_validation", "proteobench:Intensity"}
     record = _object(restored.levels["ion"].metadata["proteobench"])
     provenance = _object(
         _object(_object(restored.metadata["proteobench"])["provenance"])["scoring"]
@@ -313,7 +314,7 @@ def test_named_selection_scores_one_abundance_layer(tmp_path: Path) -> None:
 
     restored = read_parsed_levels(target)
     assert list(result.layers) == ["LFQ/Intensity"]
-    assert set(restored.levels["ion"].varm) == {"proteobench:LFQ/Intensity"}
+    assert set(restored.levels["ion"].varm) == {"fasta_validation", "proteobench:LFQ/Intensity"}
     record = _object(restored.levels["ion"].metadata["proteobench"])
     provenance = _object(
         _object(_object(restored.metadata["proteobench"])["provenance"])["scoring"]
@@ -339,6 +340,7 @@ def test_all_abundance_layers_round_trip_in_declared_order(
     restored = read_parsed_levels(target)
     assert list(result.layers) == ["Intensity", "LFQ/Intensity"]
     assert list(restored.levels["ion"].varm) == [
+        "fasta_validation",
         "proteobench:Intensity",
         "proteobench:LFQ/Intensity",
     ]
@@ -365,45 +367,12 @@ def test_named_selection_rejects_layers_without_abundance_role(
         )
 
 
-def test_all_abundance_layers_fall_back_to_primary_without_roles(tmp_path: Path) -> None:
+def test_all_abundance_layers_reject_missing_roles(tmp_path: Path) -> None:
     parsed = _multi_layer_result()
-    parsed.levels["ion"].uns.pop("layer_roles")
-    target = tmp_path / "scored.parquet"
-
-    result = _analyze_result(tmp_path, parsed, selection=ALL_ABUNDANCE_LAYERS)
-    write_parsed_levels(result.parsed, target)
-
-    assert list(result.layers) == ["Intensity"]
-    assert result.selection.fallback == "primary_missing_abundance_roles"
-    restored = read_parsed_levels(target)
-    provenance = _object(
-        _object(_object(restored.metadata["proteobench"])["provenance"])["scoring"]
-    )
-    assert provenance["selection_fallback"] == "primary_missing_abundance_roles"
-
-
-@pytest.mark.parametrize(
-    ("abundance", "message"),
-    [
-        (["Intensity", "Intensity"], "duplicate"),
-        (["Intensity", "Missing"], "references missing"),
-        ("Intensity", "string list"),
-    ],
-)
-def test_all_abundance_layers_reject_corrupt_role_metadata(
-    abundance: JsonValue,
-    message: str,
-    tmp_path: Path,
-) -> None:
-    parsed = _multi_layer_result()
-    parsed.levels["ion"].uns["layer_roles"] = {"abundance": abundance}
-
-    with pytest.raises(ValueError, match=message):
-        _analyze_result(
-            tmp_path,
-            parsed,
-            selection=ALL_ABUNDANCE_LAYERS,
-        )
+    for layer in parsed.levels["ion"].layers.values():
+        layer.semantic_roles = ()
+    with pytest.raises(ValueError, match="abundance role"):
+        _analyze_result(tmp_path, parsed, selection=ALL_ABUNDANCE_LAYERS)
 
 
 class _ObservedDiagnostics:
@@ -606,7 +575,7 @@ def test_cli_scores_one_layer_and_defaults_to_x(
         logger.remove(sink)
 
     assert status == 0
-    assert list(read_parsed_levels(target).levels["ion"].varm) == expected
+    assert list(read_parsed_levels(target).levels["ion"].varm) == ["fasta_validation", *expected]
     assert f"scored level=ion layer={expected[0].removeprefix('proteobench:')}" in "".join(messages)
 
 

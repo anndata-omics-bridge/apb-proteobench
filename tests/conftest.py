@@ -81,6 +81,10 @@ def quantitative_input(*, hy: bool = False) -> QuantitativeLevelInput:
         matrix=matrix_values(),
         feature_ids=pd.Index(["H/2", "Y/2", "E/2", "C/2", "M/2", "N/2"]),
         reported_proteins=pd.Series(proteins),
+        matched_organisms=pd.Series(
+            ["HUMAN", "YEAST", "HUMAN" if hy else "ECOLI", "HUMAN", "HUMAN;YEAST", ""]
+        ),
+        matches_contaminant=np.array([False, False, False, True, False, False]),
         level="ion",
     )
 
@@ -99,27 +103,37 @@ def parsed_result() -> ParsedLevels:
         var=VarFinal(
             frame=pl.DataFrame({"feature": features, "Protein_Ids": proteins}),
             key_columns=("feature",),
+            roles={"protein_assignment": "Protein_Ids"},
         ),
         primary_layer_name="Intensity",
         uns={
             "quantification_level": "ion",
-            "column_roles": {"protein_assignment": "Protein_Ids"},
-            "layer_roles": {"abundance": ["Intensity"]},
         },
         layers={
             "Intensity": FinalLayerTable(
                 layer_name="Intensity",
-                var_key_columns=("feature",),
-                values=pl.DataFrame(
-                    {
-                        "feature": features,
-                        **{f"obs_{index}": matrix[index, :] for index in range(matrix.shape[0])},
-                    }
-                ),
+                values=(
+                    pl.DataFrame(
+                        {
+                            "feature": features,
+                            **{
+                                f"obs_{index}": matrix[index, :] for index in range(matrix.shape[0])
+                            },
+                        }
+                    )
+                ).drop(("feature",), strict=False),
+                semantic_roles=("abundance",),
             )
         },
         obsm={},
-        varm={},
+        varm={
+            "fasta_validation": pl.DataFrame(
+                {
+                    "fasta_matching_organisms": inputs.matched_organisms.tolist(),
+                    "fasta_matches_contaminant": inputs.matches_contaminant,
+                }
+            )
+        },
         obsp={},
         varp={},
     )

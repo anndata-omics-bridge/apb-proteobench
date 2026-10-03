@@ -36,10 +36,9 @@ def report_score(
     logger.info("ProteoBench score summary")
     logger.info("input={} output={}", source, target)
     logger.info(
-        "selection={} layers={} fallback={}",
+        "selection={} layers={}",
         result.selection.mode,
         list(result.layers),
-        result.selection.fallback or "none",
     )
     logger.info(
         "species={} expected_A_vs_B={}",
@@ -51,7 +50,6 @@ def report_score(
         diagnostics = layer.analysis.diagnostics
         frame = diagnostics.varm
         scores = layer.analysis.scores
-        accession = diagnostics.protein_mapping.accession_mapper
         included = int(frame["included"].sum())
         logger.info("level={} layer={}", layer.level_name, layer.layer_name)
         logger.info(
@@ -59,12 +57,6 @@ def report_score(
             len(frame),
             included,
             len(frame) - included,
-        )
-        logger.info(
-            "accessions mapper_entries={} matched={} unmatched={}",
-            accession.entries,
-            accession.matched_token_occurrences,
-            accession.unmatched_token_occurrences,
         )
         logger.info(
             "cutoff={} nr_feature={} median_abs_error={} median_abs_precision={} "

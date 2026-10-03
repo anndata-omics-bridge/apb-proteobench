@@ -30,4 +30,6 @@ class QuantitativeLevelInput:
     matrix: QuantMatrix
     feature_ids: pd.Index
     reported_proteins: pd.Series
+    matched_organisms: pd.Series
+    matches_contaminant: NDArray[np.bool_]
     level: QuantificationLevel

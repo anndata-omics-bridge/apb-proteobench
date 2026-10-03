@@ -59,7 +59,8 @@ class MixedSpeciesDiagnostics:
         return compute_intermediate(
             level.matrix,
             level.feature_ids,
-            level.reported_proteins,
+            level.matched_organisms,
+            level.matches_contaminant,
             configuration,
             design,
             level.level,
