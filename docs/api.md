@@ -37,30 +37,19 @@ Input paths, output paths, vendor detection, search parameters, FASTA reports, a
 
 ## Select layers
 
-Every declared abundance layer is scored by default:
+Every declared abundance layer is scored by default; `layers` names the ones to score instead:
 
 ```python
 from apb_proteobench.api import ProteoBenchAnalyzer
-from apb_proteobench.integration import ALL_ABUNDANCE_LAYERS
 
-analyzer = ProteoBenchAnalyzer(module, selection=ALL_ABUNDANCE_LAYERS)
-result = analyzer.analyze(parsed)
-```
-
-Use the APB primary layer or one named abundance layer explicitly:
-
-```python
-from apb_proteobench.api import ProteoBenchAnalyzer
-from apb_proteobench.integration import PRIMARY_LAYER, NamedAbundanceLayer
-
-primary = ProteoBenchAnalyzer(module, selection=PRIMARY_LAYER).analyze(parsed)
-named = ProteoBenchAnalyzer(
-    module,
-    selection=NamedAbundanceLayer("LFQ_Intensity"),
+every = ProteoBenchAnalyzer(module).analyze(parsed)
+primary = ProteoBenchAnalyzer(
+    module, layers=(parsed.levels["ion"].primary_layer_name,)
 ).analyze(parsed)
+named = ProteoBenchAnalyzer(module, layers=("LFQ_Intensity",)).analyze(parsed)
 ```
 
-`ALL_ABUNDANCE_LAYERS` preserves declared order and requires at least one layer with the abundance role. `PRIMARY_LAYER` selects `ParsedLevel.primary_layer_name`; `NamedAbundanceLayer` requires the named layer to exist and carry the stored abundance role.
+APB2's `ParsedLevel.abundance_layers()` resolves `layers`: `None` keeps declared order and requires at least one layer with the abundance role; a named layer must exist and carry that role. Scoring provenance records the scored layer names under `layers`.
 
 ## Substitute calculation methods
 

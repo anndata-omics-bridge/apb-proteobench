@@ -11,13 +11,14 @@ from time import perf_counter
 from typing import Annotated, Literal
 
 import numpy as np
+import polars as pl
 from apb2.api import (
+    ParsedLevels,
     ParseRuleCompiler,
     QuantificationLevel,
     read_parsed_levels,
     write_parsed_levels,
 )
-from apb2.result_facade import PRIMARY_LAYER, LayerSelection, NamedAbundanceLayer
 from apb_fasta.api import FastaAnnotationResult, FastaAnnotator
 from apb_fasta.calculation.results import FastaAnnotationReports
 from apb_fasta.configuration import FastaAnnotationParameters
@@ -32,7 +33,7 @@ from apb_proteobench.api import (
     ProteoBenchAnalysisResult,
     ProteoBenchAnalyzer,
 )
-from apb_proteobench.calculation.entrapment import read_pairs
+from apb_proteobench.calculation.entrapment import fasta_pairs
 from apb_proteobench.calculation.intermediate import align_runs
 from apb_proteobench.calculation.metrics import PROTEOBENCH_SOURCE_REVISION
 from apb_proteobench.configuration.entrapment import load_packaged_entrapment_module
@@ -122,10 +123,6 @@ class EntrapmentCliOptions:
         Path | None,
         Parameter(help="Vendor search-parameter file"),
     ] = None
-    pairs: Annotated[
-        Path | None,
-        Parameter(help="ProteoBench's entrapment peptide-pair file (.txt or .txt.gz)"),
-    ] = None
     module: Annotated[
         str,
         Parameter(help="Packaged entrapment module name"),
@@ -175,6 +172,7 @@ class _VerifiedConversion:
     """Vendor files converted by APB2, their peptides verified against FASTA, and timings."""
 
     compiler: ParseRuleCompiler
+    proteins: pl.DataFrame
     verified: FastaAnnotationResult
     seconds: dict[str, float]
     levels: tuple[dict[str, str | float], ...]
@@ -224,6 +222,7 @@ def _convert_and_verify(
     ).verify_peptides(parsed)
     return _VerifiedConversion(
         compiler=compiler,
+        proteins=proteins,
         verified=verified,
         seconds={
             "compile": compile_seconds,
@@ -273,9 +272,10 @@ def benchmark(
     try:
         _require_new_target(source, target)
         parsed = read_parsed_levels(source)
-        result = ProteoBenchAnalyzer(
-            _load_module(module), selection=_layer_selection(layer)
-        ).analyze(parsed)
+        loaded = _load_module(module)
+        result = ProteoBenchAnalyzer(loaded, layers=_layer_names(layer, parsed, loaded)).analyze(
+            parsed
+        )
         target.parent.mkdir(parents=True, exist_ok=True)
         write_parsed_levels(result.parsed, target)
         _export_result_performance(result, {}, result_performance)
@@ -292,7 +292,7 @@ def run_quant(
     /,
     *fasta_paths: Annotated[
         Path,
-        Parameter(help="One or more protein FASTA files"),
+        Parameter(help="One or more protein FASTA files, or their protein-fasta database Parquet"),
     ],
     options: Annotated[RunCliOptions, Parameter(name="*")] = DEFAULT_RUN_CLI_OPTIONS,
     verbose: Annotated[
@@ -337,10 +337,10 @@ def run_quant(
         loaded_module = _load_module(options.module)
         seconds["load_module"] = perf_counter() - started
         started = perf_counter()
+        parsed = conversion.verified.parsed
         result = ProteoBenchAnalyzer(
-            loaded_module,
-            selection=_layer_selection(options.layer),
-        ).analyze(conversion.verified.parsed)
+            loaded_module, layers=_layer_names(options.layer, parsed, loaded_module)
+        ).analyze(parsed)
         seconds["analyze"] = perf_counter() - started
         started = perf_counter()
         options.output.parent.mkdir(parents=True, exist_ok=True)
@@ -377,21 +377,19 @@ def run_entrapment(
     /,
     *fasta_paths: Annotated[
         Path,
-        Parameter(help="One or more protein FASTA files"),
+        Parameter(help="One or more protein FASTA files, or their protein-fasta database Parquet"),
     ],
     options: Annotated[EntrapmentCliOptions, Parameter(name="*")] = DEFAULT_ENTRAPMENT_CLI_OPTIONS,
 ) -> int:
     """Score one entrapment module: FDP estimates for every precursor q-value kind.
 
     The result offers its q-value kinds through apb-catalog's proteobench_entrapment set;
-    each kind is scored. --pairs is ProteoBench's peptide-pair file for the module.
+    each kind is scored. Labels and pairs come from the entrapment FASTA, or from its Parquet
+    protein database written by protein-fasta database.
     --timings-dir records internal operation timings outside the scored result.
     """
     if options.params is None:
         logger.error("pass --params PATH for the vendor search-parameter file")
-        return 1
-    if options.pairs is None:
-        logger.error("pass --pairs PATH for ProteoBench's entrapment peptide-pair file")
         return 1
     if options.output is None:
         logger.error("pass --output PATH for the final APB2 result")
@@ -414,7 +412,7 @@ def run_entrapment(
         )
         seconds = dict(conversion.seconds)
         started = perf_counter()
-        pairs = read_pairs(options.pairs)
+        pairs = fasta_pairs(conversion.proteins)
         seconds["load_module"] = perf_counter() - started
         started = perf_counter()
         result = EntrapmentAnalyzer(settings, pairs=pairs).analyze(conversion.verified.parsed)
@@ -542,8 +540,17 @@ def _report_vendor_benchmark(
     report_score(result, source, target, verbose=verbose)
 
 
-def _layer_selection(layer: str, /) -> LayerSelection:
-    return PRIMARY_LAYER if layer == PRIMARY_LAYER_NAME else NamedAbundanceLayer(layer)
+def _layer_names(
+    layer: str, parsed: ParsedLevels, module: LoadedModule, /
+) -> tuple[str, ...] | None:
+    """Name the scored layer; "X" is the configured level's primary layer.
+
+    An absent level returns ``None``: the analyzer then reports the unavailable level.
+    """
+    if layer != PRIMARY_LAYER_NAME:
+        return (layer,)
+    level = parsed.levels.get(module.settings.general.level)
+    return None if level is None else (level.primary_layer_name,)
 
 
 def _export_result_performance(

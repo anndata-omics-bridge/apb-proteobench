@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from apb2.api import ParsedLevels
-from apb2.result_facade import ALL_ABUNDANCE_LAYERS, LayerSelection, ResolvedLayerSelection
 
 from apb_proteobench.annotation import ProteoBenchAnnotationParser
 from apb_proteobench.configuration.load import LoadedModule
@@ -16,7 +16,7 @@ from apb_proteobench.integration import (
     diagnostics_slot,
     extract_layer,
     persist_results,
-    resolve_layer_selection,
+    select_layers,
 )
 from apb_proteobench.workflow import (
     DiagnosticMethod,
@@ -36,7 +36,6 @@ class ProteoBenchAnalysisResult:
 
     parsed: ParsedLevels
     configuration: ModuleSettings
-    selection: ResolvedLayerSelection
     layers: dict[str, ScoredLayerResult]
 
 
@@ -47,8 +46,8 @@ class ProteoBenchAnalyzer:
         "_annotation_parser",
         "_configuration",
         "_diagnostic_method",
+        "_layers",
         "_scoring_method",
-        "_selection",
     )
 
     def __init__(
@@ -56,27 +55,25 @@ class ProteoBenchAnalyzer:
         module: LoadedModule,
         /,
         *,
-        selection: LayerSelection = ALL_ABUNDANCE_LAYERS,
+        layers: Sequence[str] | None = None,
         diagnostic_method: DiagnosticMethod = _DEFAULT_DIAGNOSTICS,
         scoring_method: ScoringMethod = _DEFAULT_SCORING,
     ) -> None:
-        """Create a complete analyzer for one validated ProteoBench module."""
+        """Create a complete analyzer for one validated ProteoBench module.
+
+        ``layers`` names the abundance layers to score; ``None`` scores every one.
+        """
         self._annotation_parser = ProteoBenchAnnotationParser(module)
         self._configuration = module.settings
-        self._selection = selection
+        self._layers = layers
         self._diagnostic_method = diagnostic_method
         self._scoring_method = scoring_method
 
     def analyze(self, parsed: ParsedLevels, /) -> ProteoBenchAnalysisResult:
         """Annotate and score canonical APB2 levels without physical I/O."""
-        annotated = self._annotation_parser.parse(parsed).annotate().parsed
-        resolved = resolve_layer_selection(
-            annotated,
-            self._configuration,
-            self._selection,
-        )
+        annotated = self._annotation_parser.parse(parsed).annotate()
         layers: dict[str, ScoredLayerResult] = {}
-        for layer_name in resolved.layer_names:
+        for layer_name in select_layers(annotated, self._configuration, self._layers):
             selected = extract_layer(annotated, self._configuration, layer_name)
             analysis = analyze_level(
                 selected.calculation,
@@ -92,9 +89,8 @@ class ProteoBenchAnalyzer:
                 analysis=analysis,
             )
         return ProteoBenchAnalysisResult(
-            parsed=persist_results(annotated, resolved, layers),
+            parsed=persist_results(annotated, layers),
             configuration=self._configuration,
-            selection=resolved,
             layers=layers,
         )
 

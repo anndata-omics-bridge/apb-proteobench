@@ -26,7 +26,7 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 - `workflow.py` owns the client-side diagnostic and scoring protocols and composes concrete
   calculations explicitly.
 - `calculation/` contains no AnnData, MuData, result I/O, logging, or CLI behavior.
-- `configuration/` is the inward Pydantic/TOML/SDRF boundary and imports no outer package module; it reads SDRFs only through `apb2.annotation_extension`.
+- `configuration/` is the inward Pydantic/TOML/SDRF boundary and imports no outer package module; it reads SDRFs only through `apb2.api.SdrfSource`.
 - `io/` owns physical compatibility exports and imports no workflow, calculation, integration, API,
   presentation, or CLI module; the CLI passes it completed tables.
 - APB2 is an inward dependency through its public facades; APB2 must never import this package.

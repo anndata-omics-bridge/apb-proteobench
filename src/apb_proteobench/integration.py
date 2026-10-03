@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, replace
 from typing import cast
@@ -12,16 +12,7 @@ from urllib.parse import quote
 import numpy as np
 import pandas as pd
 import polars as pl
-from apb2.api import ParsedLevels
-from apb2.result_facade import (
-    ALL_ABUNDANCE_LAYERS,
-    JsonValue,
-    LayerSelection,
-    ParsedLevel,
-    ParsedLevelName,
-    ResolvedLayerSelection,
-    quantitative_layer_values,
-)
+from apb2.api import JsonValue, ParsedLevel, ParsedLevels
 
 from apb_proteobench.calculation.contracts import QuantitativeLevelInput
 from apb_proteobench.calculation.metrics import (
@@ -58,7 +49,7 @@ class ResolvedRoles:
 class ExtractedProteoBenchLayer:
     """One layer's calculation input paired with its persisted APB role resolution."""
 
-    level_name: ParsedLevelName
+    level_name: str
     layer_name: str
     calculation: QuantitativeLevelInput
     roles: ResolvedRoles
@@ -68,7 +59,7 @@ class ExtractedProteoBenchLayer:
 class ScoredLayerResult:
     """One selected layer's roles, persisted slot, and completed analysis."""
 
-    level_name: ParsedLevelName
+    level_name: str
     layer_name: str
     diagnostics_slot: str
     roles: ResolvedRoles
@@ -100,13 +91,13 @@ def embedded_configuration(parsed: ParsedLevels, /) -> ModuleSettings:
     return ModuleSettings.model_validate(document)
 
 
-def resolve_layer_selection(
+def select_layers(
     parsed: ParsedLevels,
     configuration: ModuleSettings,
-    selection: LayerSelection = ALL_ABUNDANCE_LAYERS,
+    layers: Sequence[str] | None = None,
     /,
-) -> ResolvedLayerSelection:
-    """Resolve one selection policy against the configured APB level."""
+) -> tuple[str, ...]:
+    """Name the abundance layers to score on the configured level; ``None`` is all of them."""
     level_name = configuration.general.level
     try:
         level = parsed.levels[level_name]
@@ -115,10 +106,7 @@ def resolve_layer_selection(
             f"embedded ProteoBench configuration selects unavailable level {level_name!r}"
         ) from error
     _require_available_storage(level)
-    resolved = selection.resolve(level)
-    if not resolved.layer_names:
-        raise ValueError("layer selection resolved to no layers")
-    return resolved
+    return level.abundance_layers(layers)
 
 
 def extract_layer(
@@ -142,7 +130,7 @@ def extract_layer(
     if fasta is None or "fasta_matches_contaminant" not in fasta.columns:
         raise ValueError("ProteoBench scoring requires apb-fasta peptide verification")
     matrix = (
-        quantitative_layer_values(level, layer_name).to_numpy().astype(np.float64, copy=False).T
+        level.layers[layer_name].quantitative_values().to_numpy().astype(np.float64, copy=False).T
     )
     return ExtractedProteoBenchLayer(
         level_name=level_name,
@@ -166,7 +154,6 @@ def extract_layer(
 
 def persist_results(
     parsed: ParsedLevels,
-    selection: ResolvedLayerSelection,
     results: Mapping[str, ScoredLayerResult],
     /,
 ) -> ParsedLevels:
@@ -176,8 +163,6 @@ def persist_results(
     first = next(iter(results.values()))
     level = parsed.levels[first.level_name]
     _require_available_storage(level)
-    if tuple(results) != selection.layer_names:
-        raise ValueError("ProteoBench analyses do not match the selected layers")
     varm = dict(level.varm)
     layer_records: dict[str, JsonValue] = {}
     for selected in results.values():
@@ -205,7 +190,7 @@ def persist_results(
         raise ValueError("ProteoBench provenance must be an object")
     if "scoring" in provenance:
         raise ValueError("ProteoBench scoring provenance already exists; refusing to overwrite")
-    provenance["scoring"] = _result_record(selection, results)
+    provenance["scoring"] = _result_record(results)
     levels = dict(parsed.levels)
     levels[first.level_name] = replace(level, varm=varm, metadata=level_metadata)
     return replace(
@@ -223,16 +208,13 @@ def diagnostics_slot(layer_name: str, /) -> str:
     return f"{_DIAGNOSTICS_PREFIX}{layer_name}"
 
 
-def _result_record(
-    selection: ResolvedLayerSelection,
-    results: Mapping[str, ScoredLayerResult],
-) -> dict[str, JsonValue]:
+def _result_record(results: Mapping[str, ScoredLayerResult]) -> dict[str, JsonValue]:
     first_result = next(iter(results.values())).analysis
     return {
         "schema_version": "3",
         "compatibility_version": PROTEOBENCH_COMPATIBILITY_VERSION,
         "source_revision": PROTEOBENCH_SOURCE_REVISION,
-        **selection.as_json(),
+        "layers": list(results),
         "diagnostic_method": cast(dict[str, JsonValue], first_result.diagnostic_method),
         "scoring_method": cast(dict[str, JsonValue], first_result.scoring_method),
     }

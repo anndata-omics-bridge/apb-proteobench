@@ -2,6 +2,9 @@
 
 ## 2026-10-03
 
+- **Breaking:** `run entrapment` drops `--pairs`: labels and pairs come from the entrapment FASTA, which reproduces ProteoBench's pair file exactly (see [compatibility](docs/compatibility.md)). `fasta_pairs(proteins)` replaces `read_pairs(path)`; `pair` becomes text, the unmodified pair index plus each modification site. The FASTA argument of `run quant` and `run entrapment` may be a protein-fasta database Parquet file.
+- Sample annotation runs through `apb2.api.AnnotationCompiler(unmatched="error")` with the module samples as a prolfquapp table keyed by `raw_file`. The annotated obs gains `sample_name` and `condition`, no longer a duplicate `raw_file`; APB2's per-level annotation report moves from the `proteobench` to the `prolfquapp` metadata section, and the module record stays under `proteobench.provenance.annotation`.
+- **Breaking:** `ProteoBenchAnalyzer(layers=...)` takes abundance layer names; `None`, the default, scores every abundance layer. `selection=` and `ProteoBenchAnalysisResult.selection` are gone, and scoring provenance records `layers` instead of `selection_mode`. apb2 is imported only through `apb2.api`.
 - Use APB2 abundance selections and typed var roles; missing abundance roles fail instead of selecting primary.
 
 ## Unreleased

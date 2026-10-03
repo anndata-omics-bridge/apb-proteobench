@@ -4,12 +4,16 @@ Ports ProteoBench's entrapment module (pair mapping in ``EntrapmentModule._apply
 metrics in ``EntrapmentScores``) with one deliberate difference: precursors with equal
 q-values share a rank. ProteoBench breaks such ties by vendor-file row order, which APB
 results do not keep, so a tie never counts as an entrapment out-scoring its paired target.
+
+Labels and pairs come from the entrapment FASTA instead of ProteoBench's pair file, which they
+reproduce exactly: the FASTA lists each target directly before its entrapment, and the pair file
+pairs each modified form with the partner form carrying the same modifications on the same
+occurrence of each residue.
 """
 
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -24,6 +28,7 @@ TIE_RULE = "equal q-values share a rank"
 PRECURSOR_COLUMNS = ("peptide", "sequence", "q_value")
 _ALLOWED_MODIFICATIONS = frozenset({"carbamidomethyl", "oxidation"})
 _MODIFICATION = re.compile(r"\[([^\[\]]*)\]")
+_RESIDUE = re.compile(r"([A-Z])(?:\[([^\[\]]*)\])?")
 _FIXED_THRESHOLDS = (0.001, 0.01, 0.05, 0.1, 1.0)
 # 1 + 1 / entrapment fold, with one entrapment peptide per target (Wen et al. 2025, eq. 1).
 _COMBINED_RATIO = 2.0
@@ -31,7 +36,7 @@ _EXAMPLES = 5
 
 
 class EntrapmentError(ValueError):
-    """The identified precursors cannot be labelled by the entrapment pair file."""
+    """The identified precursors cannot be labelled by the entrapment FASTA."""
 
 
 class _ScoreModel(BaseModel):
@@ -62,22 +67,41 @@ class EntrapmentScores(_ScoreModel):
     fdp_curve: dict[float, ThresholdScores]
 
 
-def read_pairs(path: Path) -> pl.DataFrame:
-    """Read ProteoBench's pair file as one label and pair index per peptide sequence."""
-    return (
-        pl.read_csv(
-            path,
-            separator="\t",
-            columns=["sequence", "peptide_type", "peptide_pair_index"],
-            schema_overrides={"peptide_pair_index": pl.Int64},
-        )
-        .unique(subset="sequence", keep="first", maintain_order=True)
-        .select(
-            "sequence",
-            pl.col("peptide_type").replace({"p_target": "entrapment"}).alias("label"),
-            pl.col("peptide_pair_index").alias("pair"),
-        )
+def fasta_pairs(proteins: pl.DataFrame) -> pl.DataFrame:
+    """Return the label and unmodified pair index of every entrapment-FASTA peptide.
+
+    Args:
+        proteins: protein_fasta's frame of ProteoBench's entrapment FASTA, in file order.
+
+    Returns:
+        One row per entry: ``peptide``, ``label`` (``target`` or ``entrapment``) and ``pair``.
+
+    Raises:
+        EntrapmentError: The frame lacks ``is_entrapment``, or two adjacent entries are not a
+            target followed by its same-length entrapment.
+    """
+    if "is_entrapment" not in proteins.columns:
+        raise EntrapmentError("the protein frame lacks protein_fasta's is_entrapment column")
+    pairs = proteins.select(
+        peptide="sequence",
+        label=pl.when("is_entrapment").then(pl.lit("entrapment")).otherwise(pl.lit("target")),
+        pair=pl.int_range(pl.len(), dtype=pl.Int64) // 2,
     )
+    broken = (
+        pairs.group_by("pair")
+        .agg(
+            labels=pl.col("label").str.join(","),
+            lengths=pl.col("peptide").str.len_chars().n_unique(),
+        )
+        .filter((pl.col("labels") != "target,entrapment") | (pl.col("lengths") != 1))
+    )
+    if broken.height:
+        raise EntrapmentError(
+            f"{broken.height} adjacent FASTA entry pairs are not a target followed by its "
+            f"same-length entrapment; is this ProteoBench's entrapment FASTA? First pair: "
+            f"{broken.get_column('pair').min()}"
+        )
+    return pairs
 
 
 def label_precursors(
@@ -91,22 +115,23 @@ def label_precursors(
     Args:
         precursors: One row per precursor: ``peptide`` (stripped), ``sequence`` (modified,
             with ProteoBench modification names such as ``M[Oxidation]``) and ``q_value``.
-        pairs: The pair table from :func:`read_pairs`.
+        pairs: The pair table from :func:`fasta_pairs`.
         max_missing_fraction: Largest tolerated fraction of peptides absent from ``pairs``.
 
     Returns:
-        The kept precursors with ``label`` and ``pair`` columns.
+        The kept precursors with ``label`` and ``pair``: the unmodified pair index followed by
+        each modification and the occurrence of the residue it sits on.
 
     Raises:
-        EntrapmentError: Too many peptides are unknown, a sequence carries a modification
-            other than oxidation or carbamidomethylation, or a modified form is unknown.
+        EntrapmentError: Too many peptides are unknown, or a sequence carries a modification
+            other than oxidation or carbamidomethylation.
     """
     peptides = precursors.get_column("peptide").unique()
-    missing = peptides.filter(~peptides.is_in(pairs.get_column("sequence").implode()))
+    missing = peptides.filter(~peptides.is_in(pairs.get_column("peptide").implode()))
     if missing.len() > max_missing_fraction * peptides.len():
         raise EntrapmentError(
             f"{missing.len()} of {peptides.len()} identified peptides are absent from the "
-            f"entrapment pair file (limit {max_missing_fraction:.0%}). Search the pre-digested "
+            f"entrapment FASTA (limit {max_missing_fraction:.0%}). Search the pre-digested "
             f"entrapment FASTA without enzymatic cleavage. First: {_first(missing)}"
         )
     kept = precursors.filter(~pl.col("peptide").is_in(missing.implode()))
@@ -121,17 +146,24 @@ def label_precursors(
     if unsupported:
         raise EntrapmentError(
             f"{len(unsupported)} sequence(s) carry a modification other than Oxidation or "
-            f"Carbamidomethyl, which the pair file does not cover. First: "
+            f"Carbamidomethyl, which ProteoBench's pairs do not cover. First: "
             f"{', '.join(unsupported[:_EXAMPLES])}"
         )
-    labelled = kept.join(pairs, on="sequence", how="left", maintain_order="left")
-    unknown = labelled.filter(pl.col("pair").is_null()).get_column("sequence").unique()
-    if unknown.len():
-        raise EntrapmentError(
-            f"{unknown.len()} modified sequence(s) are absent from the pair file although "
-            f"their peptides are present. First: {_first(unknown)}"
-        )
-    return labelled
+    sites = {sequence: _sites(sequence) for sequence in kept.get_column("sequence").unique()}
+    return kept.join(pairs, on="peptide", how="left", maintain_order="left").with_columns(
+        pl.format("{}{}", "pair", pl.col("sequence").replace_strict(sites)).alias("pair")
+    )
+
+
+def _sites(sequence: str) -> str:
+    """Name each modification by residue and occurrence, e.g. ``:M2[oxidation]``."""
+    seen: dict[str, int] = {}
+    sites: list[str] = []
+    for residue, modification in _RESIDUE.findall(sequence):
+        seen[residue] = seen.get(residue, 0) + 1
+        if modification:
+            sites.append(f":{residue}{seen[residue]}[{modification.strip().lower()}]")
+    return "".join(sorted(sites))
 
 
 def score_entrapment(labelled: pl.DataFrame, *, intervals: int = 10) -> EntrapmentScores:

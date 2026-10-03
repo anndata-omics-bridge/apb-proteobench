@@ -8,16 +8,12 @@ from pathlib import Path
 
 import polars as pl
 import pytest
-from apb2.api import ParsedLevels, read_parsed_levels, write_parsed_levels
-from apb2.result_facade import (
-    ALL_ABUNDANCE_LAYERS,
-    PRIMARY_LAYER,
-    AnnotationTable,
-    FeatureRelation,
+from apb2.api import (
     FinalLayerTable,
     JsonValue,
-    LayerSelection,
-    NamedAbundanceLayer,
+    ParsedLevels,
+    read_parsed_levels,
+    write_parsed_levels,
 )
 from loguru import logger
 
@@ -37,24 +33,14 @@ from apb_proteobench.workflow import (
 from conftest import module_settings, parsed_result, quantitative_input, write_module
 
 
-def test_package_uses_apb2_public_api_for_compilation_and_result_io() -> None:
-    public_names = {
-        "ParseRuleCompiler",
-        "ParsedLevels",
-        "QuantificationLevel",
-        "read_parsed_levels",
-        "write_parsed_levels",
-    }
+def test_package_imports_apb2_only_through_its_api() -> None:
+    allowed = {"apb2.api"}
     package = Path(__file__).parents[1] / "src/apb_proteobench"
     for path in package.rglob("*.py"):
         document = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(document):
-            if not isinstance(node, ast.ImportFrom) or node.module is None:
-                continue
-            assert not node.module.startswith("apb2.parserV2"), path
-            if node.module == "apb2.result_facade":
-                bypassed = public_names.intersection(name.name for name in node.names)
-                assert not bypassed, f"{path} bypasses apb2.api for {sorted(bypassed)}"
+            if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("apb2"):
+                assert node.module in allowed, f"{path} imports {node.module}"
 
 
 def test_public_api_is_an_in_memory_proteobench_boundary() -> None:
@@ -69,9 +55,6 @@ def test_public_api_is_an_in_memory_proteobench_boundary() -> None:
 
     assert {item for item in imported if item[0].startswith("apb2")} == {
         ("apb2.api", "ParsedLevels"),
-        ("apb2.result_facade", "ALL_ABUNDANCE_LAYERS"),
-        ("apb2.result_facade", "LayerSelection"),
-        ("apb2.result_facade", "ResolvedLayerSelection"),
     }
     assert not any(
         module == "pathlib" or module.startswith(("apb_fasta", "protein_fasta"))
@@ -88,10 +71,10 @@ def test_annotation_requires_exact_coverage_and_embeds_complete_configuration(
 
     result = ProteoBenchAnnotationParser.from_path(module).parse(parsed).annotate()
 
-    level = result.parsed.levels["ion"]
-    assert level.obs.frame.columns == ["Run", "raw_file", "sample_name", "condition"]
+    level = result.levels["ion"]
+    assert level.obs.frame.columns == ["Run", "sample_name", "condition"]
     assert level.obs.frame.get_column("sample_name").to_list() == ["A1", "A2", "B1", "B2"]
-    record = _object(result.parsed.metadata["proteobench"])
+    record = _object(result.metadata["proteobench"])
     details = _object(_object(record["provenance"])["annotation"])
     assert set(record) == {"provenance"}
     assert "metadata" not in details and "convention" not in details
@@ -113,31 +96,26 @@ def test_annotation_accepts_module_sample_names_as_identifiers(tmp_path: Path) -
 
     result = ProteoBenchAnnotationParser.from_path(module).parse(parsed).annotate()
 
-    level = result.parsed.levels["ion"]
-    assert level.obs.frame.get_column("raw_file").to_list() == [
-        "run_A1",
-        "run_A2",
-        "run_B1",
-        "run_B2",
-    ]
+    level = result.levels["ion"]
+    assert level.obs.frame.get_column("condition").to_list() == ["A", "A", "B", "B"]
     assert level.obs.frame.get_column("sample_name").to_list() == ["A1", "A2", "B1", "B2"]
 
 
 def test_annotation_preserves_root_annotation_tables_and_relations(tmp_path: Path) -> None:
     module = tmp_path / "module.toml"
     write_module(module, alias=True)
-    parsed = parsed_result()
-    parsed.annotation_tables["members"] = AnnotationTable(
-        frame=pl.DataFrame({"member": ["P1"]}),
-        key_columns=("member",),
-    )
-    parsed.feature_relations["membership"] = FeatureRelation(
-        annotation_table="members",
-        target_level="ion",
-        coordinates=pl.DataFrame({"row": [0], "column": [0], "value": [1.0]}),
+    parsed = (
+        parsed_result()
+        .with_annotation_table("members", pl.DataFrame({"member": ["P1"]}), ("member",))
+        .with_feature_relation(
+            "membership",
+            "members",
+            "ion",
+            pl.DataFrame({"row": [0], "column": [0], "value": [1.0]}),
+        )
     )
 
-    result = ProteoBenchAnnotationParser.from_path(module).parse(parsed).annotate().parsed
+    result = ProteoBenchAnnotationParser.from_path(module).parse(parsed).annotate()
 
     assert result.annotation_tables["members"].frame.equals(
         parsed.annotation_tables["members"].frame
@@ -184,7 +162,7 @@ def test_annotation_scoring_and_roundtrip_through_every_apb_format(
     write_module(module)
     parsed = parsed_result()
     loaded = load_module(module)
-    baseline = ProteoBenchAnnotationParser(loaded).parse(parsed).annotate().parsed
+    baseline = ProteoBenchAnnotationParser(loaded).parse(parsed).annotate()
     result = ProteoBenchAnalyzer(loaded).analyze(parsed)
     write_parsed_levels(result.parsed, scored)
     restored = read_parsed_levels(scored)
@@ -197,10 +175,10 @@ def test_annotation_scoring_and_roundtrip_through_every_apb_format(
     assert _object(provenance["scoring"])["schema_version"] == "3"
     assert set(provenance) == {"annotation", "scoring"}
     assert (
-        stored["annotation"]
-        == _object(baseline.levels["ion"].metadata["proteobench"])["annotation"]
+        _object(restored.levels["ion"].metadata["prolfquapp"])["annotation"]
+        == _object(baseline.levels["ion"].metadata["prolfquapp"])["annotation"]
     )
-    assert set(stored) == {"annotation", "scoring"}
+    assert set(stored) == {"scoring"}
     layer = _object(_object(stored["scoring"])["Intensity"])
     assert _object(layer["scores"])["nr_feature"] == 3
     assert _object(layer["column_roles"])["Proteins"] == "var:Protein_Ids"
@@ -256,11 +234,11 @@ def _analyze_result(
     parsed: ParsedLevels,
     /,
     *,
-    selection: LayerSelection = ALL_ABUNDANCE_LAYERS,
+    layers: tuple[str, ...] | None = None,
 ) -> ProteoBenchAnalysisResult:
     module = folder / "module.toml"
     write_module(module)
-    return ProteoBenchAnalyzer(load_module(module), selection=selection).analyze(parsed)
+    return ProteoBenchAnalyzer(load_module(module), layers=layers).analyze(parsed)
 
 
 def test_default_selection_scores_every_abundance_layer(tmp_path: Path) -> None:
@@ -280,7 +258,7 @@ def test_default_selection_scores_every_abundance_layer(tmp_path: Path) -> None:
     provenance = _object(
         _object(_object(restored.metadata["proteobench"])["provenance"])["scoring"]
     )
-    assert provenance["selection_mode"] == "all_abundance"
+    assert provenance["layers"] == ["Intensity", "LFQ/Intensity"]
     assert "resolved_layers" not in provenance
     assert list(_object(record["scoring"])) == ["Intensity", "LFQ%2FIntensity"]
 
@@ -288,7 +266,7 @@ def test_default_selection_scores_every_abundance_layer(tmp_path: Path) -> None:
 def test_primary_selection_scores_only_x_layer(tmp_path: Path) -> None:
     target = tmp_path / "scored.parquet"
 
-    result = _analyze_result(tmp_path, _multi_layer_result(), selection=PRIMARY_LAYER)
+    result = _analyze_result(tmp_path, _multi_layer_result(), layers=("Intensity",))
     write_parsed_levels(result.parsed, target)
 
     restored = read_parsed_levels(target)
@@ -298,7 +276,7 @@ def test_primary_selection_scores_only_x_layer(tmp_path: Path) -> None:
     provenance = _object(
         _object(_object(restored.metadata["proteobench"])["provenance"])["scoring"]
     )
-    assert provenance["selection_mode"] == "primary"
+    assert provenance["layers"] == ["Intensity"]
     assert list(_object(record["scoring"])) == ["Intensity"]
 
 
@@ -308,7 +286,7 @@ def test_named_selection_scores_one_abundance_layer(tmp_path: Path) -> None:
     result = _analyze_result(
         tmp_path,
         _multi_layer_result(),
-        selection=NamedAbundanceLayer("LFQ/Intensity"),
+        layers=("LFQ/Intensity",),
     )
     write_parsed_levels(result.parsed, target)
 
@@ -319,7 +297,7 @@ def test_named_selection_scores_one_abundance_layer(tmp_path: Path) -> None:
     provenance = _object(
         _object(_object(restored.metadata["proteobench"])["provenance"])["scoring"]
     )
-    assert provenance["selection_mode"] == "named_abundance"
+    assert provenance["layers"] == ["LFQ/Intensity"]
     assert list(_object(record["scoring"])) == ["LFQ%2FIntensity"]
 
 
@@ -333,7 +311,7 @@ def test_all_abundance_layers_round_trip_in_declared_order(
     result = _analyze_result(
         tmp_path,
         _multi_layer_result(),
-        selection=ALL_ABUNDANCE_LAYERS,
+        layers=None,
     )
     write_parsed_levels(result.parsed, target)
 
@@ -363,7 +341,7 @@ def test_named_selection_rejects_layers_without_abundance_role(
         _analyze_result(
             tmp_path,
             _multi_layer_result(),
-            selection=NamedAbundanceLayer(name),
+            layers=(name,),
         )
 
 
@@ -372,7 +350,7 @@ def test_all_abundance_layers_reject_missing_roles(tmp_path: Path) -> None:
     for layer in parsed.levels["ion"].layers.values():
         layer.semantic_roles = ()
     with pytest.raises(ValueError, match="abundance role"):
-        _analyze_result(tmp_path, parsed, selection=ALL_ABUNDANCE_LAYERS)
+        _analyze_result(tmp_path, parsed, layers=None)
 
 
 class _ObservedDiagnostics:
@@ -486,7 +464,7 @@ def test_multi_layer_failure_mutates_no_input_or_target(tmp_path: Path) -> None:
     diagnostics = MixedSpeciesDiagnostics().diagnose(quantitative_input(), module_settings())
     analyzer = ProteoBenchAnalyzer(
         load_module(module),
-        selection=ALL_ABUNDANCE_LAYERS,
+        layers=None,
         diagnostic_method=_FailsAfterFirstDiagnostics(diagnostics),
     )
 
@@ -683,7 +661,6 @@ def test_cli_exposes_only_complete_workflows() -> None:
                 "Vendor result table or directory",
                 "One or more protein FASTA files",
                 "Vendor search-parameter file",
-                "ProteoBench's entrapment peptide-pair file",
                 "Packaged entrapment module name",
                 "FASTA peptide-matching backend",
                 "Promote APB2 layer-contract warnings to errors",

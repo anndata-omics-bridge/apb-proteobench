@@ -27,6 +27,17 @@ Measured against the stored ProteoBench datapoints of 219 corpus submissions, `n
 
 To reproduce ProteoBench's plasma datapoints from DIA-NN results, pass `--layer Precursor_Quantity`. With `X`, DIA-NN 2.x plasma results differ by more than 50 %, because DIA-NN's normalisation factors differ between the two conditions there.
 
+## Entrapment pairs come from the FASTA
+
+ProteoBench labels each precursor and finds its partner in a separate pair file. APB derives both from the entrapment FASTA, which it already reads to verify peptides:
+
+- Label: protein_fasta's `is_entrapment` flags the `sp|<peptide>_p_target|…` entries
+- Unmodified pair: the FASTA lists every target directly before its entrapment, so the pair is the entry position halved
+- Modified forms: the pair file pairs each one with the partner form carrying the same modifications on the same occurrence of each residue, e.g. the second Met oxidised; APB's pair key is the unmodified pair plus those sites
+- Measured on the 2026 pair file: this key reproduces all 2,573,718 pairs, with no two forms sharing a key
+- Guard: scoring stops when two adjacent FASTA entries are not a target followed by a same-length entrapment
+- Difference: the pair file lists only the modified forms ProteoBench generated; APB pairs any Oxidation and Carbamidomethyl combination, which the pair-file version refused. None of the 12 entrapment submissions has such a form: all scored under that version.
+
 ## Smaller differences
 
 - Two-species (HY) modules write no `nr_quantified_ECOLI`; ProteoBench's plasma code always writes it, as 0

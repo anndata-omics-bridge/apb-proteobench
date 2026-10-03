@@ -5,7 +5,7 @@
 | Command | Input | Outputs |
 | --- | --- | --- |
 | `apb-proteobench run quant` | vendor table, parameters, FASTA, and packaged module or module TOML | scored APB2 result and optional pMultiQC/ProteoBot pair |
-| `apb-proteobench run entrapment` | vendor table, parameters, FASTA, and ProteoBench's entrapment pair file | APB2 result scored for every precursor q-value kind |
+| `apb-proteobench run entrapment` | vendor table, parameters, and the entrapment FASTA or its protein database | APB2 result scored for every precursor q-value kind |
 | `apb-proteobench benchmark` | existing APB2 result and packaged module or module TOML | scored APB2 result and optional pMultiQC/ProteoBot pair |
 
 In-memory annotation and scoring remain available through `ProteoBenchAnalyzer` and `EntrapmentAnalyzer`, but are not separate CLI commands. APB2 owns conversion and persistence. Use `apb2 convert`, `apb-fasta verify-peptides`, and `apb-aggregate` when a staged shell workflow is needed.
@@ -46,17 +46,18 @@ The main options are `--level LEVEL`, `--software`, `--strict`, `--backend`, `--
 ## `apb-proteobench run entrapment`
 
 ```text
-apb-proteobench run entrapment DATA FASTA... --params PATH --pairs PATH --output RESULT [OPTIONS]
+apb-proteobench run entrapment DATA FASTA --params PATH --output RESULT [OPTIONS]
 ```
 
-`run entrapment` converts vendor inputs at the module's level, verifies peptides against FASTA, labels each precursor target or entrapment from ProteoBench's pair file, and scores ProteoBench's entrapment metrics: lower-bound, combined and paired FDP, their categories, and the FDP curve. apb-catalog's `proteobench_entrapment` set names the precursor q-values the result offers (`q_value`, `library_q_value`, `global_q_value`); each kind is scored from its best value across runs:
+`run entrapment` converts vendor inputs at the module's level, verifies peptides against FASTA, labels each precursor target or entrapment from the same FASTA, and scores ProteoBench's entrapment metrics: lower-bound, combined and paired FDP, their categories, and the FDP curve. apb-catalog's `proteobench_entrapment` set names the precursor q-values the result offers (`q_value`, `library_q_value`, `global_q_value`); each kind is scored from its best value across runs:
 
 ```bash
 apb-proteobench run entrapment report.parquet ProteoBenchFASTA_Entrapment_Human_with_contaminants_entrapment_pep.fasta \
     --params report.log.txt \
-    --pairs ProteoBenchFASTA_Entrapment_Human_with_contaminants_entrapment_pep.txt.gz \
     --output results/entrapment.h5ad
 ```
+
+The FASTA argument may instead be the Parquet file `protein-fasta database entrapment.parquet ProteoBenchFASTA_Entrapment_….fasta` writes once; it loads about 70 times faster than parsing the 2.84 M-entry FASTA. Labels and pairs come from that FASTA rather than ProteoBench's pair file, and reproduce the pair file exactly; see [differences from ProteoBench](compatibility.md).
 
 `--module` defaults to the packaged `entrapment_dia_astral`. Scores per kind sit in the level's `metadata["proteobench"]["entrapment"]`, each precursor's label, pair and best q-values in `varm["proteobench:entrapment"]`, and the catalogue lookups in `metadata["catalog"]["proteobench_entrapment"]`. Precursors with equal q-values share a rank, so a tie never counts as an entrapment out-scoring its target ([ProteoBench#1159](https://github.com/Proteobench/ProteoBench/issues/1159)). `--timings-dir` writes the same three timing files as `run quant`, without `export`.
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 import pandas as pd
-from apb2.modification_facade import canonical_modification_names
+from apb2.api import canonical_modification_names
 
 _UNIMOD_TAG = re.compile(r"\[(UNIMOD:\d+)\]", flags=re.IGNORECASE)
 _FINAL_RESIDUE_MODS = re.compile(

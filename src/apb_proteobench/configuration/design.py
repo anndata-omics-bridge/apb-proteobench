@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 
 import polars as pl
-from apb2.annotation_extension import SdrfSource
+from apb2.api import SdrfSource
 
 from apb_proteobench.configuration.schema import (
     ExpectedRatio,

@@ -6,7 +6,7 @@ import hashlib
 import tomllib
 from importlib.resources import as_file, files
 
-from apb2.annotation_extension import SdrfSource, load_annotation_file
+from apb2.api import SdrfSource
 from pydantic import BaseModel, ConfigDict, Field
 
 from apb_proteobench.configuration.schema import QuantificationLevel
@@ -47,7 +47,7 @@ def load_packaged_entrapment_module(name: str, /) -> EntrapmentModuleSettings:
     document = tomllib.loads(resources.joinpath(f"{name}.toml").read_text("utf-8"))
     sdrf = resources.joinpath(document["sdrf"])
     with as_file(sdrf) as path:
-        SdrfSource(load_annotation_file(path))
+        SdrfSource.read(path)
     general = document["general"]
     return EntrapmentModuleSettings(
         name=name,

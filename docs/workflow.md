@@ -91,7 +91,6 @@ from apb2.api import ParseRuleCompiler, write_parsed_levels
 from apb_fasta.api import FastaAnnotator
 from apb_proteobench.api import ProteoBenchAnalyzer
 from apb_proteobench.configuration.load import load_module
-from apb_proteobench.integration import ALL_ABUNDANCE_LAYERS
 from protein_fasta.frame import ProteinDatabase, refseq, uniprotkb
 
 compiler = ParseRuleCompiler(
@@ -102,10 +101,7 @@ compiler = ParseRuleCompiler(
 parsed = compiler.compile().parse()
 proteins = ProteinDatabase(uniprotkb, refseq).parse((Path("proteins.fasta"),))
 verified = FastaAnnotator(proteins).verify_peptides(parsed)
-result = ProteoBenchAnalyzer(
-    load_module(Path("module_settings.toml")),
-    selection=ALL_ABUNDANCE_LAYERS,
-).analyze(verified.parsed)
+result = ProteoBenchAnalyzer(load_module(Path("module_settings.toml"))).analyze(verified.parsed)
 write_parsed_levels(result.parsed, Path("results/scored.h5mu"))
 
 print(list(result.parsed.levels))

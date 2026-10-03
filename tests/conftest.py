@@ -7,13 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import polars as pl
-from apb2.api import ParsedLevels
-from apb2.result_facade import (
-    FinalLayerTable,
-    ObsFinal,
-    ParsedLevel,
-    VarFinal,
-)
+from apb2.api import ParsedLevel, ParsedLevels
 from numpy.typing import NDArray
 
 from apb_proteobench.calculation.contracts import QuantitativeLevelInput
@@ -95,37 +89,15 @@ def parsed_result() -> ParsedLevels:
     features = inputs.feature_ids.astype(str).tolist()
     proteins = inputs.reported_proteins.astype(str).tolist()
     matrix = matrix_values()
-    level = ParsedLevel(
-        obs=ObsFinal(
-            frame=pl.DataFrame({"Run": ["run_A1", "run_A2", "run_B1", "run_B2"]}),
-            key_columns=("Run",),
-        ),
-        var=VarFinal(
-            frame=pl.DataFrame({"feature": features, "Protein_Ids": proteins}),
-            key_columns=("feature",),
-            roles={"protein_assignment": "Protein_Ids"},
-        ),
-        primary_layer_name="Intensity",
-        uns={
-            "quantification_level": "ion",
-        },
-        layers={
-            "Intensity": FinalLayerTable(
-                layer_name="Intensity",
-                values=(
-                    pl.DataFrame(
-                        {
-                            "feature": features,
-                            **{
-                                f"obs_{index}": matrix[index, :] for index in range(matrix.shape[0])
-                            },
-                        }
-                    )
-                ).drop(("feature",), strict=False),
-                semantic_roles=("abundance",),
-            )
-        },
-        obsm={},
+    level = ParsedLevel.build(
+        pl.DataFrame({"Run": ["run_A1", "run_A2", "run_B1", "run_B2"]}),
+        ("Run",),
+        pl.DataFrame({"feature": features, "Protein_Ids": proteins}),
+        ("feature",),
+        {"protein_assignment": "Protein_Ids"},
+        primary_layer="Intensity",
+        abundance={"Intensity": pl.DataFrame(matrix.T, orient="row")},
+        uns={"quantification_level": "ion"},
         varm={
             "fasta_validation": pl.DataFrame(
                 {
@@ -134,8 +106,6 @@ def parsed_result() -> ParsedLevels:
                 }
             )
         },
-        obsp={},
-        varp={},
     )
     return ParsedLevels(levels={"ion": level}, uns={})
 

@@ -26,7 +26,7 @@ max_nr_observed = 6
 "run_A1.raw" = ["run_A1_uncalibrated"]
 ```
 
-The SDRF path is relative to the TOML's directory. APB2 reads it through `apb2.annotation_extension.SdrfSource`; the columns ProteoBench uses are:
+The SDRF path is relative to the TOML's directory. APB2 reads it through `apb2.api.SdrfSource.read`; the columns ProteoBench uses are:
 
 | SDRF column | Becomes |
 | --- | --- |

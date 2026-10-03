@@ -10,8 +10,7 @@ from importlib.resources import as_file, files
 from pathlib import Path
 from typing import cast
 
-from apb2.annotation_extension import SdrfSource, load_annotation_file
-from apb2.result_facade import JsonValue
+from apb2.api import JsonValue, SdrfSource
 
 from apb_proteobench.configuration.design import compose_module_settings
 from apb_proteobench.configuration.schema import ModuleDocument, ModuleSettings
@@ -148,7 +147,7 @@ def _load_module(
     document: ModuleDocument,
     sdrf_path: Path,
 ) -> LoadedModule:
-    sdrf = SdrfSource(load_annotation_file(sdrf_path))
+    sdrf = SdrfSource.read(sdrf_path)
     return LoadedModule(
         settings=compose_module_settings(document, sdrf),
         source=ModuleSource(

@@ -6,8 +6,7 @@ from copy import deepcopy
 from dataclasses import dataclass, replace
 
 import polars as pl
-from apb2.api import ParsedLevels
-from apb2.result_facade import JsonValue
+from apb2.api import JsonValue, ParsedLevels
 from apb_catalog.catalog import Catalog, attach_snapshot
 
 from apb_proteobench.calculation.entrapment import (
@@ -45,12 +44,12 @@ class EntrapmentAnalysisResult:
 
 
 class EntrapmentAnalyzer:
-    """Bind one entrapment module and ProteoBench's pair table."""
+    """Bind one entrapment module and the pair table derived from its FASTA."""
 
     __slots__ = ("_configuration", "_pairs")
 
     def __init__(self, module: EntrapmentModuleSettings, /, *, pairs: pl.DataFrame) -> None:
-        """Create an analyzer; ``pairs`` comes from :func:`read_pairs`."""
+        """Create an analyzer; ``pairs`` comes from :func:`fasta_pairs`."""
         self._configuration = module
         self._pairs = pairs
 

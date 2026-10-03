@@ -35,11 +35,7 @@ def report_score(
     conditions = Counter(sample.condition for sample in configuration.samples)
     logger.info("ProteoBench score summary")
     logger.info("input={} output={}", source, target)
-    logger.info(
-        "selection={} layers={}",
-        result.selection.mode,
-        list(result.layers),
-    )
+    logger.info("layers={}", list(result.layers))
     logger.info(
         "species={} expected_A_vs_B={}",
         list(configuration.species_expected_ratio),

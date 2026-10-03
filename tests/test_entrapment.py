@@ -2,36 +2,28 @@
 
 from __future__ import annotations
 
-import gzip
-from pathlib import Path
-
 import polars as pl
 import pytest
 
 from apb_proteobench.calculation.entrapment import (
     EntrapmentError,
+    fasta_pairs,
     label_precursors,
-    read_pairs,
     score_entrapment,
 )
 
-PAIRS = """sequence\tdecoy\tproteins\tpeptide_type\tpeptide_pair_index
-AAAK\tNo\tsp|P1|ONE_HUMAN\ttarget\t0
-CCCK\tNo\tsp|P1_p_target|ONE_HUMAN_p_target\tp_target\t0
-DDDK\tNo\tsp|P2|TWO_HUMAN\ttarget\t1
-EEEK\tNo\tsp|P2_p_target|TWO_HUMAN_p_target\tp_target\t1
-FFMK\tNo\tsp|P3|THREE_HUMAN\ttarget\t2
-FFM[Oxidation]K\tNo\tsp|P3|THREE_HUMAN\ttarget\t2
-GGMK\tNo\tsp|P3_p_target|THREE_HUMAN_p_target\tp_target\t2
-AAAK\tNo\tsp|P9|NINE_HUMAN\ttarget\t9
-"""
+# The entrapment FASTA in file order: each target directly before its entrapment.
+PROTEINS = pl.DataFrame(
+    {
+        "sequence": ["AAAK", "CCCK", "DDDK", "EEEK", "FFMK", "GGMK"],
+        "is_entrapment": [False, True, False, True, False, True],
+    }
+)
 
 
 @pytest.fixture
-def pairs(tmp_path: Path) -> pl.DataFrame:
-    path = tmp_path / "pairs.txt.gz"
-    path.write_bytes(gzip.compress(PAIRS.encode()))
-    return read_pairs(path)
+def pairs() -> pl.DataFrame:
+    return fasta_pairs(PROTEINS)
 
 
 def _precursors(*rows: tuple[str, str, float]) -> pl.DataFrame:
@@ -45,18 +37,34 @@ SIX = _precursors(
     ("DDDK", "DDDK", 0.003),
     ("EEEK", "EEEK", 0.003),
     ("FFMK", "FFM[Oxidation]K", 0.004),
-    ("GGMK", "GGMK", 0.0005),
+    ("GGMK", "GGM[Oxidation]K", 0.0005),
 )
 
 
-def test_pairs_keep_the_first_row_per_sequence_and_name_entrapments(pairs: pl.DataFrame) -> None:
-    assert pairs.row(0) == ("AAAK", "target", 0)
-    assert pairs.filter(pl.col("label") == "entrapment").get_column("sequence").to_list() == [
-        "CCCK",
-        "EEEK",
-        "GGMK",
-    ]
-    assert pairs.height == 7
+def test_fasta_neighbours_are_pairs_and_entrapments_are_named(pairs: pl.DataFrame) -> None:
+    assert pairs.rows()[:2] == [("AAAK", "target", 0), ("CCCK", "entrapment", 0)]
+    assert pairs.get_column("pair").to_list() == [0, 0, 1, 1, 2, 2]
+
+
+def test_a_fasta_that_does_not_alternate_target_and_entrapment_is_refused() -> None:
+    swapped = PROTEINS.with_columns(pl.col("is_entrapment").shift(1, fill_value=True))
+    with pytest.raises(EntrapmentError, match="3 adjacent FASTA entry pairs"):
+        fasta_pairs(swapped)
+    with pytest.raises(EntrapmentError, match="lacks protein_fasta's is_entrapment"):
+        fasta_pairs(PROTEINS.drop("is_entrapment"))
+
+
+def test_modified_forms_pair_by_modification_and_residue_occurrence(pairs: pl.DataFrame) -> None:
+    labelled = label_precursors(
+        _precursors(
+            ("FFMK", "FFMK", 0.001),
+            ("FFMK", "FFM[Oxidation]K", 0.001),
+            ("GGMK", "GGM[Oxidation]K", 0.001),
+        ),
+        pairs,
+    )
+
+    assert labelled.get_column("pair").to_list() == ["2", "2:M1[oxidation]", "2:M1[oxidation]"]
 
 
 def test_scores_match_hand_computed_values(pairs: pl.DataFrame) -> None:
@@ -81,7 +89,8 @@ def test_scores_match_hand_computed_values(pairs: pl.DataFrame) -> None:
         0.004,
     ], "thresholds without an identified target are left out"
     first = scores.fdp_curve[0.001]
-    # AAAK and GGMK: GGMK's target FFMK is not identified yet: (1 + 1 + 0) / 2.
+    # AAAK and GGM[Oxidation]K, whose target FFM[Oxidation]K is not identified yet:
+    # (1 + 1 + 0) / 2.
     assert (first.nr_id_features, first.lower_bound_FDP, first.paired_FDP) == (2, 0.5, 1.0)
     assert scores.fdp_curve[0.004].paired_FDP == scores.paired_FDP
 
@@ -103,11 +112,9 @@ def test_too_many_unknown_peptides_are_refused(pairs: pl.DataFrame) -> None:
     assert tolerated.get_column("peptide").to_list() == SIX.get_column("peptide").to_list()
 
 
-def test_other_modifications_and_unknown_modified_forms_are_refused(pairs: pl.DataFrame) -> None:
+def test_other_modifications_are_refused(pairs: pl.DataFrame) -> None:
     with pytest.raises(EntrapmentError, match="other than Oxidation"):
         label_precursors(_precursors(("AAAK", "AAAK[Phospho]", 0.001)), pairs)
-    with pytest.raises(EntrapmentError, match="absent from the pair file although"):
-        label_precursors(_precursors(("GGMK", "GGM[Oxidation]K", 0.001)), pairs)
 
 
 def test_scoring_needs_labelled_precursors_with_q_values(pairs: pl.DataFrame) -> None:

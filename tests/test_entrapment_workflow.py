@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import gzip
 import json
 from pathlib import Path
 
 import polars as pl
 import pytest
 from apb2.api import ParseRuleCompiler, read_parsed_levels
+from protein_fasta.frame import ProteinDatabase, refseq, uniprotkb
 
 from apb_proteobench.api import EntrapmentAnalyzer
-from apb_proteobench.calculation.entrapment import read_pairs
+from apb_proteobench.calculation.entrapment import fasta_pairs
 from apb_proteobench.cli import app
 from apb_proteobench.configuration.entrapment import load_packaged_entrapment_module
 from apb_proteobench.entrapment import CATALOGUE, DIAGNOSTICS_SLOT
@@ -33,8 +33,8 @@ COLUMNS = (
 )
 # Run, modified sequence, run q-value, library q-value, global q-value. Pair 0: the
 # entrapment loses on every kind; pair 1: tied on run and library, better on global;
-# pair 2: worse on run, better on library and global. GGMC's carbamidomethyl sits on its
-# last residue.
+# pair 2: worse on run, better on library and global. GGMC's and HHHC's carbamidomethyl sits
+# on their last residue.
 ROWS = (
     ("R1", "AAAK", 0.001, 0.001, 0.001),
     ("R2", "AAAK", 0.003, 0.001, 0.001),
@@ -42,20 +42,13 @@ ROWS = (
     ("R1", "DDDK", 0.003, 0.003, 0.003),
     ("R1", "EEEK", 0.003, 0.003, 0.0005),
     ("R1", "GGMC(UniMod:4)", 0.004, 0.004, 0.004),
-    ("R1", "HHHK", 0.005, 0.0005, 0.0005),
+    ("R1", "HHHC(UniMod:4)", 0.005, 0.0005, 0.0005),
 )
-PAIRS = """sequence\tdecoy\tproteins\tpeptide_type\tpeptide_pair_index
-AAAK\tNo\tsp|P1|ONE_HUMAN\ttarget\t0
-CCCK\tNo\tsp|P1_p_target|ONE_HUMAN_p_target\tp_target\t0
-DDDK\tNo\tsp|P2|TWO_HUMAN\ttarget\t1
-EEEK\tNo\tsp|P2_p_target|TWO_HUMAN_p_target\tp_target\t1
-GGMC\tNo\tsp|P3|THREE_HUMAN\ttarget\t2
-GGMC[Carbamidomethyl]\tNo\tsp|P3|THREE_HUMAN\ttarget\t2
-HHHK\tNo\tsp|P3_p_target|THREE_HUMAN_p_target\tp_target\t2
-"""
+# ProteoBench's entrapment FASTA: each target directly before its entrapment.
+PEPTIDES = ("AAAK", "CCCK", "DDDK", "EEEK", "GGMC", "HHHC")
 
 
-def _write_inputs(folder: Path) -> tuple[Path, Path, Path, Path]:
+def _write_inputs(folder: Path) -> tuple[Path, Path, Path]:
     lines = ["\t".join(COLUMNS)]
     for run, modified, q_value, library, experiment in ROWS:
         stripped = modified.split("(", 1)[0]
@@ -85,18 +78,26 @@ def _write_inputs(folder: Path) -> tuple[Path, Path, Path, Path]:
         "DIA-NN 1.8.1 (Data-Independent Acquisition by Neural Networks)\ndiann --unimod4\n",
         encoding="utf-8",
     )
-    pairs = folder / "pairs.txt.gz"
-    pairs.write_bytes(gzip.compress(PAIRS.encode()))
     fasta = folder / "peptides.fasta"
-    fasta.write_text(">sp|P1|ONE_HUMAN All peptides\nMAAAKCCCKDDDKEEEKGGMCHHHK\n", encoding="utf-8")
-    return data, parameters, pairs, fasta
+    fasta.write_text(
+        "".join(
+            f">sp|{p}_{kind}|{p}_{kind}\n{p}\n"
+            for p, kind in zip(PEPTIDES, ("target", "p_target") * 3, strict=True)
+        ),
+        encoding="utf-8",
+    )
+    return data, parameters, fasta
+
+
+def _pairs(fasta: Path) -> pl.DataFrame:
+    return fasta_pairs(ProteinDatabase(uniprotkb, refseq).parse((fasta,)))
 
 
 def test_every_catalogued_q_value_kind_is_scored(tmp_path: Path) -> None:
-    data, parameters, pairs, _fasta = _write_inputs(tmp_path)
+    data, parameters, fasta = _write_inputs(tmp_path)
     parsed = ParseRuleCompiler(data, parameters, requested_levels=("ion",)).compile().parse()
     analyzer = EntrapmentAnalyzer(
-        load_packaged_entrapment_module("entrapment_dia_astral"), pairs=read_pairs(pairs)
+        load_packaged_entrapment_module("entrapment_dia_astral"), pairs=_pairs(fasta)
     )
 
     result = analyzer.analyze(parsed)
@@ -130,10 +131,10 @@ def test_every_catalogued_q_value_kind_is_scored(tmp_path: Path) -> None:
 
 
 def test_a_result_scored_once_refuses_a_second_scoring(tmp_path: Path) -> None:
-    data, parameters, pairs, _fasta = _write_inputs(tmp_path)
+    data, parameters, fasta = _write_inputs(tmp_path)
     parsed = ParseRuleCompiler(data, parameters, requested_levels=("ion",)).compile().parse()
     analyzer = EntrapmentAnalyzer(
-        load_packaged_entrapment_module("entrapment_dia_astral"), pairs=read_pairs(pairs)
+        load_packaged_entrapment_module("entrapment_dia_astral"), pairs=_pairs(fasta)
     )
     scored = analyzer.analyze(parsed).parsed
 
@@ -146,8 +147,13 @@ def test_only_packaged_entrapment_modules_load() -> None:
         load_packaged_entrapment_module("dia_astral")
 
 
-def test_cli_run_entrapment_writes_a_scored_result(tmp_path: Path) -> None:
-    data, parameters, pairs, fasta = _write_inputs(tmp_path)
+@pytest.mark.parametrize("database", [False, True])
+def test_cli_run_entrapment_writes_a_scored_result(tmp_path: Path, database: bool) -> None:
+    data, parameters, fasta = _write_inputs(tmp_path)
+    if database:
+        parquet = tmp_path / "peptides.parquet"
+        ProteinDatabase(uniprotkb, refseq).write_parquet((fasta,), parquet)
+        fasta = parquet
     target = tmp_path / "scored.h5ad"
     timings = tmp_path / "timings"
 
@@ -159,8 +165,6 @@ def test_cli_run_entrapment_writes_a_scored_result(tmp_path: Path) -> None:
             str(fasta),
             "--params",
             str(parameters),
-            "--pairs",
-            str(pairs),
             "--output",
             str(target),
             "--timings-dir",
@@ -180,25 +184,3 @@ def test_cli_run_entrapment_writes_a_scored_result(tmp_path: Path) -> None:
     assert library["paired_FDP"] == 5 / 6
     benchmark = json.loads((timings / "apb-proteobench.benchmark.timings.json").read_text())
     assert [phase["name"] for phase in benchmark["phases"]] == ["load_module", "analyze", "write"]
-
-
-def test_cli_run_entrapment_needs_the_pair_file(tmp_path: Path) -> None:
-    data, parameters, _pairs, fasta = _write_inputs(tmp_path)
-
-    status = app(
-        [
-            "run",
-            "entrapment",
-            str(data),
-            str(fasta),
-            "--params",
-            str(parameters),
-            "--output",
-            str(tmp_path / "scored.h5ad"),
-        ],
-        exit_on_error=False,
-        result_action="return_value",
-    )
-
-    assert status == 1
-    assert not (tmp_path / "scored.h5ad").exists()
