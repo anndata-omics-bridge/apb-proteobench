@@ -89,6 +89,7 @@ def test_cli_run_can_convert_only_ion_to_h5ad(tmp_path: Path) -> None:
     data, parameters, fasta, module = _write_benchmark_diann_input(tmp_path)
     target = tmp_path / "stored.h5ad"
     result_performance = tmp_path / "pmultiqc" / "result_performance.csv"
+    scores = tmp_path / "scores.json"
     timings_dir = tmp_path / "timings"
 
     status = app(
@@ -109,6 +110,8 @@ def test_cli_run_can_convert_only_ion_to_h5ad(tmp_path: Path) -> None:
             str(target),
             "--result-performance",
             str(result_performance),
+            "--scores",
+            str(scores),
             "--timings-dir",
             str(timings_dir),
         ],
@@ -119,6 +122,8 @@ def test_cli_run_can_convert_only_ion_to_h5ad(tmp_path: Path) -> None:
     assert status == 0
     assert list(read_parsed_levels(target).levels) == ["ion"]
     assert result_performance.is_file()
+    (proteobot,) = result_performance.parent.glob("*.json")
+    assert json.loads(scores.read_text()) == json.loads(proteobot.read_text())
     expected = {
         "apb2.convert.timings.json": ("apb2", "convert", ["compile", "read", "parse"]),
         "apb-fasta.verify-peptides.timings.json": (

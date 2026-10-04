@@ -18,6 +18,8 @@ Both commands write the scored APB2 result. Its ProteoBench score and provenance
 
 Both commands also accept `--result-performance PATH`. This option writes two ion-level compatibility artifacts in the same directory: the `result_performance.csv` intermediate consumed by the existing pMultiQC ProteoBench module and the `<intermediate_hash>.json` datapoint stored by ProteoBot in `Proteobench/Results_quant_ion_DDA`.
 
+`--scores PATH` writes that datapoint alone, at any level: the search-parameter fields ProteoBench records plus the scores, including `results` per cutoff, in the layout of the upstream datapoints, so APB scores and ProteoBench's can be compared field by field. It requires exactly one scored layer.
+
 The supplied path must be named exactly `result_performance.csv`. Neither it nor the derived hash-named JSON may already exist; both files are staged before their final paths are created without overwrite, and the CSV has no DataFrame index. The export writes the one scored layer, which must be at the ion level.
 
 ## `apb-proteobench run quant`
@@ -58,6 +60,8 @@ apb-proteobench run entrapment report.parquet ProteoBenchFASTA_Entrapment_Human_
 ```
 
 The FASTA argument may instead be the Parquet file `protein-fasta database entrapment.parquet ProteoBenchFASTA_Entrapment_….fasta` writes once; it loads about 70 times faster than parsing the 2.84 M-entry FASTA. Labels and pairs come from that FASTA rather than ProteoBench's pair file, and reproduce the pair file exactly; see [differences from ProteoBench](compatibility.md).
+
+`--scores PATH` writes one ProteoBench entrapment datapoint per q-value kind, keyed by kind: the search-parameter fields plus `lower_bound_FDP`, `combined_FDP`, `paired_FDP`, their categories and the FDP curve, in the layout of the upstream entrapment datapoints.
 
 `--module` defaults to the packaged `entrapment_dia_astral`. Scores per kind sit in the level's `metadata["proteobench"]["entrapment"]`, each precursor's label, pair and best q-values in `varm["proteobench:entrapment"]`, and the catalogue lookups in `metadata["catalog"]["proteobench_entrapment"]`. Precursors with equal q-values share a rank, so a tie never counts as an entrapment out-scoring its target ([ProteoBench#1159](https://github.com/Proteobench/ProteoBench/issues/1159)). `--timings-dir` writes the same three timing files as `run quant`, without `export`.
 

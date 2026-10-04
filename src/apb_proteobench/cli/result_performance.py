@@ -196,6 +196,32 @@ def write_result_performance_bundle(
     return ResultPerformanceFiles(csv=target, proteobot_json=json_target)
 
 
+def write_scores(
+    document: Mapping[str, object], target: Path, content: SubmissionContent | None = None
+) -> Path:
+    """Publish one ProteoBench score document as JSON, refusing an existing file.
+
+    With ``content``, the document is a ProteoBot datapoint and gains the same identity
+    fields the result-performance bundle writes.
+
+    Raises:
+        ValueError: ``target`` exists, or the datapoint lacks its software name.
+        OSError: The file cannot be written.
+    """
+    if target.exists():
+        raise ValueError(f"scores output already exists: {target}")
+    complete = _complete_datapoint(document, content) if content is not None else dict(document)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = _stage_json(complete, target)
+    try:
+        os.link(temporary, target)
+    except FileExistsError as error:
+        raise ValueError(f"scores output already exists: {target}") from error
+    finally:
+        temporary.unlink(missing_ok=True)
+    return target
+
+
 def _complete_datapoint(
     datapoint: Mapping[str, object], content: SubmissionContent
 ) -> dict[str, object]:

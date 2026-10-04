@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 
 from apb2.api import (
     ParsedLevels,
@@ -38,7 +38,7 @@ from apb_proteobench.api import (
     load_packaged_module,
 )
 from apb_proteobench.cli.presentation import report_score
-from apb_proteobench.cli.result_performance import write_result_performance_bundle
+from apb_proteobench.cli.result_performance import write_result_performance_bundle, write_scores
 from apb_proteobench.cli.timings import write_tool_timings
 
 PRIMARY_LAYER_NAME = "X"
@@ -95,6 +95,10 @@ class RunCliOptions:
         Path | None,
         Parameter(help="Write result_performance.csv and sibling ProteoBot JSON"),
     ] = None
+    scores: Annotated[
+        Path | None,
+        Parameter(help="Write the scored layer's ProteoBench datapoint JSON"),
+    ] = None
     timings_dir: Annotated[
         Path | None,
         Parameter(help="Write separate APB2, FASTA, and ProteoBench timing JSON files"),
@@ -140,6 +144,10 @@ class EntrapmentCliOptions:
         str,
         Parameter(help="Separator between protein accessions"),
     ] = ";"
+    scores: Annotated[
+        Path | None,
+        Parameter(help="Write the ProteoBench entrapment datapoint JSON per q-value kind"),
+    ] = None
     timings_dir: Annotated[
         Path | None,
         Parameter(help="Write separate APB2, FASTA, and ProteoBench timing JSON files"),
@@ -256,6 +264,10 @@ def benchmark(
         Path | None,
         Parameter(help="Write result_performance.csv and sibling ProteoBot JSON"),
     ] = None,
+    scores: Annotated[
+        Path | None,
+        Parameter(help="Write the scored layer's ProteoBench datapoint JSON"),
+    ] = None,
     verbose: Annotated[
         bool,
         Parameter(negative=False, help="Report detailed diagnostics and scores"),
@@ -272,6 +284,7 @@ def benchmark(
         target.parent.mkdir(parents=True, exist_ok=True)
         write_parsed_levels(result.parsed, target)
         _export_result_performance(result, {}, result_performance)
+        _write_scores(result, {}, scores)
     except (OSError, ValueError, ValidationError) as error:
         logger.error(str(error))
         return 1
@@ -343,6 +356,7 @@ def run_quant(
         started = perf_counter()
         _export_result_performance(result, search_parameters, options.result_performance)
         seconds["export"] = perf_counter() - started
+        _write_scores(result, search_parameters, options.scores)
         _write_run_timings(
             timing_targets,
             seconds,
@@ -414,6 +428,15 @@ def run_entrapment(
         options.output.parent.mkdir(parents=True, exist_ok=True)
         write_parsed_levels(result.parsed, options.output)
         seconds["write"] = perf_counter() - started
+        if options.scores is not None:
+            parameters = conversion.compiler.parameters.model_dump(mode="json")
+            write_scores(
+                {
+                    kind: _datapoint(parameters, json.loads(scores.model_dump_json()))
+                    for kind, scores in result.scores.items()
+                },
+                options.scores,
+            )
         _write_run_timings(timing_targets, seconds, conversion.levels, exported=False)
     except (OSError, ValueError, ValidationError, LookupError) as error:
         logger.error(str(error))
@@ -573,6 +596,25 @@ def _export_result_performance(
     logger.info("wrote ProteoBot datapoint {}", written.proteobot_json)
 
 
+def _write_scores(
+    result: ProteoBenchAnalysisResult,
+    search_parameters: Mapping[str, object],
+    target: Path | None,
+    /,
+) -> None:
+    if target is None:
+        return
+    if len(result.layers) != 1:
+        raise ValueError("the scores JSON requires exactly one selected layer")
+    layer_name = next(iter(result.layers))
+    written = write_scores(
+        _proteobot_datapoint(result, search_parameters, layer_name),
+        target,
+        result.submission(layer_name),
+    )
+    logger.info("wrote ProteoBench scores {}", written)
+
+
 def _proteobot_datapoint(
     result: ProteoBenchAnalysisResult,
     search_parameters: Mapping[str, object],
@@ -583,7 +625,13 @@ def _proteobot_datapoint(
     score_document: object = json.loads(selected.analysis.scores.model_dump_json())
     if not isinstance(score_document, dict):
         raise TypeError("ProteoBench scores did not serialize to a JSON object")
-    parameters = search_parameters
+    return _datapoint(search_parameters, cast(dict[str, object], score_document))
+
+
+def _datapoint(
+    parameters: Mapping[str, object], score_document: Mapping[str, object], /
+) -> dict[str, object]:
+    """Search-parameter fields plus scores, in ProteoBench's datapoint layout."""
     software_name = _text_parameter(parameters, "software_name") or "unknown"
     datapoint: dict[str, object] = {
         "software_name": software_name,

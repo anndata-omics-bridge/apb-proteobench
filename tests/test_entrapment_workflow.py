@@ -150,6 +150,7 @@ def test_cli_run_entrapment_writes_a_scored_result(tmp_path: Path) -> None:
     data, parameters, fasta = _write_inputs(tmp_path)
     target = tmp_path / "scored.h5ad"
     timings = tmp_path / "timings"
+    scores = tmp_path / "scores.json"
 
     status = app(
         [
@@ -163,12 +164,18 @@ def test_cli_run_entrapment_writes_a_scored_result(tmp_path: Path) -> None:
             str(target),
             "--timings-dir",
             str(timings),
+            "--scores",
+            str(scores),
         ],
         exit_on_error=False,
         result_action="return_value",
     )
 
     assert status == 0
+    datapoints = json.loads(scores.read_text())
+    assert sorted(datapoints) == ["global_q_value", "library_q_value", "q_value"]
+    assert datapoints["library_q_value"]["paired_FDP"] == 5 / 6
+    assert {"software_name", "precursor_mass_tolerance", "fdp_curve"} <= set(datapoints["q_value"])
     stored = read_parsed_levels(target).levels["ion"].metadata["proteobench"]
     assert isinstance(stored, dict)
     entrapment = stored["entrapment"]
