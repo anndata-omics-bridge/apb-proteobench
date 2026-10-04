@@ -13,12 +13,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from apb_proteobench.io.result_performance import (
-    SubmissionContent,
+from apb_proteobench.cli.result_performance import (
     content_hash,
     write_result_performance,
     write_result_performance_bundle,
 )
+from apb_proteobench.integration import SubmissionContent
 
 GOLDEN = Path(__file__).parents[1] / "data" / "small_legacy_intermediate.txt"
 

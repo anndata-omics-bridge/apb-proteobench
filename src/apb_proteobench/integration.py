@@ -13,8 +13,10 @@ import numpy as np
 import pandas as pd
 import polars as pl
 from apb2.api import JsonValue, ParsedLevel, ParsedLevels
+from numpy.typing import NDArray
 
 from apb_proteobench.calculation.contracts import QuantitativeLevelInput
+from apb_proteobench.calculation.intermediate import align_runs
 from apb_proteobench.calculation.metrics import (
     PROTEOBENCH_COMPATIBILITY_VERSION,
     PROTEOBENCH_SOURCE_REVISION,
@@ -64,6 +66,40 @@ class ScoredLayerResult:
     diagnostics_slot: str
     roles: ResolvedRoles
     analysis: ProteoBenchResult
+
+
+@dataclass(frozen=True, slots=True)
+class SubmissionContent:
+    """Selected quantitative content used for a new ProteoBot upload identity."""
+
+    matrix: NDArray[np.float32] | NDArray[np.float64]
+    feature_ids: pd.Index
+    reported_proteins: pd.Series
+    raw_files: tuple[str, ...]
+    conditions: tuple[str, ...]
+    settings: Mapping[str, object]
+
+
+def submission_content(
+    parsed: ParsedLevels, configuration: ModuleSettings, scored: ScoredLayerResult
+) -> SubmissionContent:
+    """Return the quantities, runs and settings one scored layer contributes to a submission."""
+    source = extract_layer(parsed, configuration, scored.layer_name).calculation
+    if not isinstance(source.matrix, np.ndarray):
+        raise TypeError("APB2 layer extraction did not produce a dense matrix")
+    design = align_runs(source.observations, configuration)
+    settings: dict[str, object] = configuration.model_dump(mode="json", exclude={"samples"})
+    settings["source_revision"] = PROTEOBENCH_SOURCE_REVISION
+    settings["diagnostic_method"] = scored.analysis.diagnostic_method
+    settings["scoring_method"] = scored.analysis.scoring_method
+    return SubmissionContent(
+        matrix=source.matrix,
+        feature_ids=source.feature_ids,
+        reported_proteins=source.reported_proteins,
+        raw_files=design.raw_files,
+        conditions=tuple(design.conditions),
+        settings=settings,
+    )
 
 
 def embedded_configuration(parsed: ParsedLevels, /) -> ModuleSettings:

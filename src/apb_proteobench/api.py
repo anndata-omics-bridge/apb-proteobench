@@ -8,15 +8,18 @@ from dataclasses import dataclass
 from apb2.api import ParsedLevels
 
 from apb_proteobench.annotation import ProteoBenchAnnotationParser
-from apb_proteobench.configuration.load import LoadedModule, load_module
+from apb_proteobench.configuration.entrapment import load_packaged_entrapment_module
+from apb_proteobench.configuration.load import LoadedModule, load_module, load_packaged_module
 from apb_proteobench.configuration.schema import ModuleSettings
 from apb_proteobench.entrapment import EntrapmentAnalysisResult, EntrapmentAnalyzer
 from apb_proteobench.integration import (
     ScoredLayerResult,
+    SubmissionContent,
     diagnostics_slot,
     extract_layer,
     persist_results,
     select_layers,
+    submission_content,
 )
 from apb_proteobench.workflow import (
     DiagnosticMethod,
@@ -37,6 +40,10 @@ class ProteoBenchAnalysisResult:
     parsed: ParsedLevels
     configuration: ModuleSettings
     layers: dict[str, ScoredLayerResult]
+
+    def submission(self, layer_name: str) -> SubmissionContent:
+        """Return what one scored layer contributes to ProteoBench's submission files."""
+        return submission_content(self.parsed, self.configuration, self.layers[layer_name])
 
 
 class ProteoBenchAnalyzer:
@@ -96,7 +103,11 @@ class ProteoBenchAnalyzer:
 __all__ = [
     "EntrapmentAnalysisResult",
     "EntrapmentAnalyzer",
+    "LoadedModule",
     "ProteoBenchAnalysisResult",
     "ProteoBenchAnalyzer",
+    "SubmissionContent",
     "load_module",
+    "load_packaged_entrapment_module",
+    "load_packaged_module",
 ]

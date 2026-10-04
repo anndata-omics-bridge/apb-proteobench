@@ -22,7 +22,6 @@ class EntrapmentModuleSettings(BaseModel):
 
     name: str
     level: QuantificationLevel
-    mapping_file: str = Field(description="Where ProteoBench publishes the pair file")
     sdrf: str = Field(description="Packaged module SDRF describing the runs")
     sdrf_sha256: str
     max_missing_fraction: float = Field(
@@ -33,7 +32,7 @@ class EntrapmentModuleSettings(BaseModel):
     )
 
 
-def load_packaged_entrapment_module(name: str, /) -> EntrapmentModuleSettings:
+def load_packaged_entrapment_module(name: str) -> EntrapmentModuleSettings:
     """Load one packaged entrapment module.
 
     Raises:
@@ -52,7 +51,6 @@ def load_packaged_entrapment_module(name: str, /) -> EntrapmentModuleSettings:
     return EntrapmentModuleSettings(
         name=name,
         level=general["level"],
-        mapping_file=general["mapping_file"],
         sdrf=document["sdrf"],
         sdrf_sha256=hashlib.sha256(sdrf.read_bytes()).hexdigest(),
     )

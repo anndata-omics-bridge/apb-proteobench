@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from apb_proteobench.io.tool_timings import write_tool_timings
+from apb_proteobench.cli.timings import write_tool_timings
 
 
 def test_tool_timing_file_is_atomic_and_refuses_overwrite(tmp_path: Path) -> None:

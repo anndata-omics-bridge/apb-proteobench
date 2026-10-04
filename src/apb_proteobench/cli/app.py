@@ -10,8 +10,6 @@ from pathlib import Path
 from time import perf_counter
 from typing import Annotated, Literal
 
-import numpy as np
-import polars as pl
 from apb2.api import (
     ParsedLevels,
     ParseRuleCompiler,
@@ -27,29 +25,21 @@ from apb_fasta.api import (
 )
 from cyclopts import App, Parameter
 from loguru import logger
-from protein_fasta.api import ProteinDatabase, refseq, uniprotkb
 from pydantic import ValidationError
 
 from apb_proteobench.api import (
     EntrapmentAnalysisResult,
     EntrapmentAnalyzer,
+    LoadedModule,
     ProteoBenchAnalysisResult,
     ProteoBenchAnalyzer,
+    load_module,
+    load_packaged_entrapment_module,
+    load_packaged_module,
 )
-from apb_proteobench.calculation.entrapment import fasta_pairs
-from apb_proteobench.calculation.intermediate import align_runs
-from apb_proteobench.calculation.metrics import PROTEOBENCH_SOURCE_REVISION
-from apb_proteobench.configuration.entrapment import load_packaged_entrapment_module
-from apb_proteobench.configuration.load import LoadedModule, load_module, load_packaged_module
-from apb_proteobench.integration import (
-    extract_layer,
-)
-from apb_proteobench.io.result_performance import (
-    SubmissionContent,
-    write_result_performance_bundle,
-)
-from apb_proteobench.io.tool_timings import write_tool_timings
-from apb_proteobench.presentation import report_score
+from apb_proteobench.cli.presentation import report_score
+from apb_proteobench.cli.result_performance import write_result_performance_bundle
+from apb_proteobench.cli.timings import write_tool_timings
 
 PRIMARY_LAYER_NAME = "X"
 """The ``--layer`` value that selects the APB primary layer stored in ``X``."""
@@ -175,7 +165,7 @@ class _VerifiedConversion:
     """Vendor files converted by APB2, their peptides verified against FASTA, and timings."""
 
     compiler: ParseRuleCompiler
-    proteins: pl.DataFrame
+    fasta: FastaAnnotator
     verified: FastaAnnotationResult
     seconds: dict[str, float]
     levels: tuple[dict[str, str | float], ...]
@@ -212,20 +202,20 @@ def _convert_and_verify(
     read_seconds = sum(timing.read_seconds for timing in level_timings)
     parse_seconds = max(0.0, perf_counter() - started - read_seconds)
     started = perf_counter()
-    proteins = ProteinDatabase(uniprotkb, refseq).parse(fasta_paths)
-    fasta_load_seconds = perf_counter() - started
-    started = perf_counter()
-    verified = FastaAnnotator(
-        proteins,
+    fasta = FastaAnnotator.read(
+        fasta_paths,
         parameters=FastaAnnotationParameters(
             protein_group_separator=protein_group_separator,
             matcher_backend=backend,
             il_equivalent=il_equivalent,
         ),
-    ).verify_peptides(parsed)
+    )
+    fasta_load_seconds = perf_counter() - started
+    started = perf_counter()
+    verified = fasta.verify_peptides(parsed)
     return _VerifiedConversion(
         compiler=compiler,
-        proteins=proteins,
+        fasta=fasta,
         verified=verified,
         seconds={
             "compile": compile_seconds,
@@ -401,7 +391,9 @@ def run_entrapment(
         _require_new_target(data, options.output)
         timing_targets = _run_timing_targets(options.timings_dir)
         _require_new_timing_targets(timing_targets)
+        started = perf_counter()
         settings = load_packaged_entrapment_module(options.module)
+        module_seconds = perf_counter() - started
         conversion = _convert_and_verify(
             data,
             options.params,
@@ -414,11 +406,9 @@ def run_entrapment(
             protein_group_separator=options.protein_group_separator,
         )
         seconds = dict(conversion.seconds)
+        seconds["load_module"] = module_seconds
         started = perf_counter()
-        pairs = fasta_pairs(conversion.proteins)
-        seconds["load_module"] = perf_counter() - started
-        started = perf_counter()
-        result = EntrapmentAnalyzer(settings, pairs=pairs).analyze(conversion.verified.parsed)
+        result = EntrapmentAnalyzer(settings, conversion.fasta).analyze(conversion.verified.parsed)
         seconds["analyze"] = perf_counter() - started
         started = perf_counter()
         options.output.parent.mkdir(parents=True, exist_ok=True)
@@ -573,27 +563,11 @@ def _export_result_performance(
             f"got {selected.level_name!r}"
         )
     datapoint = _proteobot_datapoint(result, search_parameters, selected.layer_name)
-    extracted = extract_layer(result.parsed, result.configuration, selected.layer_name)
-    source = extracted.calculation
-    if not isinstance(source.matrix, np.ndarray):
-        raise TypeError("APB2 layer extraction did not produce a dense matrix")
-    design = align_runs(source.observations, result.configuration)
-    settings = result.configuration.model_dump(mode="json", exclude={"samples"})
-    settings["source_revision"] = PROTEOBENCH_SOURCE_REVISION
-    settings["diagnostic_method"] = selected.analysis.diagnostic_method
-    settings["scoring_method"] = selected.analysis.scoring_method
     written = write_result_performance_bundle(
         selected.analysis.diagnostics.legacy,
         datapoint,
         target,
-        content=SubmissionContent(
-            matrix=source.matrix,
-            feature_ids=source.feature_ids,
-            reported_proteins=source.reported_proteins,
-            raw_files=design.raw_files,
-            conditions=tuple(design.conditions),
-            settings=settings,
-        ),
+        content=result.submission(selected.layer_name),
     )
     logger.info("wrote pMultiQC input {}", written.csv)
     logger.info("wrote ProteoBot datapoint {}", written.proteobot_json)

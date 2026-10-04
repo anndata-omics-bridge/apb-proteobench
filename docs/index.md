@@ -62,8 +62,7 @@ The Python API analyzes canonical APB2 results in memory; callers compose conver
 from pathlib import Path
 
 from apb2.api import read_parsed_levels, write_parsed_levels
-from apb_proteobench.api import ProteoBenchAnalyzer
-from apb_proteobench.api import load_module
+from apb_proteobench.api import ProteoBenchAnalyzer, load_module
 
 parsed = read_parsed_levels(Path("results/fasta-checked.h5mu"))
 analyzer = ProteoBenchAnalyzer(load_module(Path("module_settings.toml")))

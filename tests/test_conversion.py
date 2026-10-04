@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 from apb2.api import read_parsed_levels
 
-from apb_proteobench.cli import app
+from apb_proteobench.cli.app import app
 from conftest import matrix_values, write_module
 
 

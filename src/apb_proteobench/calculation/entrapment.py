@@ -71,7 +71,8 @@ def fasta_pairs(proteins: pl.DataFrame) -> pl.DataFrame:
     """Return the label and unmodified pair index of every entrapment-FASTA peptide.
 
     Args:
-        proteins: protein_fasta's frame of ProteoBench's entrapment FASTA, in file order.
+        proteins: The protein table of ProteoBench's entrapment FASTA, as
+            ``FastaAnnotator.proteins`` holds it, in file order.
 
     Returns:
         One row per entry: ``peptide``, ``label`` (``target`` or ``entrapment``) and ``pair``.

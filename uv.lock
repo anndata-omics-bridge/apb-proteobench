@@ -160,7 +160,6 @@ dependencies = [
     { name = "numpy" },
     { name = "pandas" },
     { name = "polars" },
-    { name = "protein-fasta" },
     { name = "pydantic" },
     { name = "scipy" },
 ]
@@ -195,7 +194,6 @@ requires-dist = [
     { name = "numpy", specifier = ">=2,<3" },
     { name = "pandas", specifier = ">=2.3,<4" },
     { name = "polars", specifier = ">=1.38,<2" },
-    { name = "protein-fasta", editable = "../protein_fasta" },
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "scipy", specifier = ">=1.16,<2" },
 ]

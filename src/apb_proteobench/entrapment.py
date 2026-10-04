@@ -8,12 +8,14 @@ from dataclasses import dataclass, replace
 import polars as pl
 from apb2.api import JsonValue, ParsedLevels
 from apb_catalog.api import Catalog, attach_snapshot
+from apb_fasta.api import FastaAnnotator
 
 from apb_proteobench.calculation.entrapment import (
     ENTRAPMENT_SOURCE_REVISION,
     TIE_RULE,
     EntrapmentError,
     EntrapmentScores,
+    fasta_pairs,
     label_precursors,
     score_entrapment,
 )
@@ -44,14 +46,23 @@ class EntrapmentAnalysisResult:
 
 
 class EntrapmentAnalyzer:
-    """Bind one entrapment module and the pair table derived from its FASTA."""
+    """Bind one entrapment module and the target/entrapment pairs of its FASTA."""
 
     __slots__ = ("_configuration", "_pairs")
 
-    def __init__(self, module: EntrapmentModuleSettings, pairs: pl.DataFrame) -> None:
-        """Create an analyzer; ``pairs`` comes from :func:`fasta_pairs`."""
+    def __init__(self, module: EntrapmentModuleSettings, fasta: FastaAnnotator) -> None:
+        """Derive the target/entrapment pairs from the entrapment FASTA.
+
+        Args:
+            module: A packaged entrapment module.
+            fasta: ProteoBench's entrapment FASTA, read by ``FastaAnnotator.read``.
+
+        Raises:
+            EntrapmentError: The frame lacks ``is_entrapment``, or two adjacent entries are not a
+                target followed by its same-length entrapment.
+        """
         self._configuration = module
-        self._pairs = pairs
+        self._pairs = fasta_pairs(fasta.proteins)
 
     def analyze(self, parsed: ParsedLevels) -> EntrapmentAnalysisResult:
         """Label precursors and score every q-value kind the result offers, without I/O."""

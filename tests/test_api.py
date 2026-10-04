@@ -23,7 +23,7 @@ from apb_proteobench.api import ProteoBenchAnalysisResult, ProteoBenchAnalyzer
 from apb_proteobench.calculation.contracts import QuantitativeLevelInput
 from apb_proteobench.calculation.intermediate import IntermediateResult
 from apb_proteobench.calculation.metrics import ProteoBenchScores
-from apb_proteobench.cli import app
+from apb_proteobench.cli.app import app
 from apb_proteobench.configuration.load import load_module
 from apb_proteobench.configuration.schema import ModuleSettings
 from apb_proteobench.workflow import (
@@ -695,7 +695,11 @@ def test_api_exports_exactly_the_approved_names() -> None:
     assert sorted(public_api.__all__) == [
         "EntrapmentAnalysisResult",
         "EntrapmentAnalyzer",
+        "LoadedModule",
         "ProteoBenchAnalysisResult",
         "ProteoBenchAnalyzer",
+        "SubmissionContent",
         "load_module",
+        "load_packaged_entrapment_module",
+        "load_packaged_module",
     ]

@@ -89,9 +89,7 @@ from pathlib import Path
 
 from apb2.api import ParseRuleCompiler, write_parsed_levels
 from apb_fasta.api import FastaAnnotator
-from apb_proteobench.api import ProteoBenchAnalyzer
-from apb_proteobench.api import load_module
-from protein_fasta.api import ProteinDatabase, refseq, uniprotkb
+from apb_proteobench.api import ProteoBenchAnalyzer, load_module
 
 compiler = ParseRuleCompiler(
     Path("report.tsv"),
@@ -99,8 +97,7 @@ compiler = ParseRuleCompiler(
     software="spectronaut",
 )
 parsed = compiler.compile().parse()
-proteins = ProteinDatabase(uniprotkb, refseq).parse((Path("proteins.fasta"),))
-verified = FastaAnnotator(proteins).verify_peptides(parsed)
+verified = FastaAnnotator.read((Path("proteins.fasta"),)).verify_peptides(parsed)
 result = ProteoBenchAnalyzer(load_module(Path("module_settings.toml"))).analyze(verified.parsed)
 write_parsed_levels(result.parsed, Path("results/scored.h5mu"))
 

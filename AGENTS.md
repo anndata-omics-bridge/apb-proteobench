@@ -19,16 +19,16 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 
 - `api.py` exposes in-memory ProteoBench analysis over canonical `ParsedLevels`; it owns no paths,
   APB2 compilation, FASTA loading, persistence, logging, or CLI behavior.
-- `cli.py` composes APB2 conversion, FASTA verification, ProteoBench analysis, persistence, and
-  presentation; presentation never reopens a result.
+- `cli/` composes APB2 conversion, FASTA verification, ProteoBench analysis, persistence, and
+  presentation through `api.py` only; presentation never reopens a result.
 - `integration.py` is the only module translating `ParsedLevels` into calculation inputs or
   attaching calculated outputs.
 - `workflow.py` owns the client-side diagnostic and scoring protocols and composes concrete
   calculations explicitly.
 - `calculation/` contains no AnnData, MuData, result I/O, logging, or CLI behavior.
 - `configuration/` is the inward Pydantic/TOML/SDRF boundary and imports no outer package module; it reads SDRFs only through `apb2.api.SdrfSource`.
-- `io/` owns physical compatibility exports and imports no workflow, calculation, integration, API,
-  presentation, or CLI module; the CLI passes it completed tables.
+- `cli/result_performance.py` and `cli/timings.py` write the CLI's compatibility and timing files
+  from completed values; they import neither the CLI application nor its presentation.
 - APB2 is an inward dependency through its public facades; APB2 must never import this package.
 - Import `ParsedLevels` from `apb2.api` in the public API. Only the CLI may import APB2 compilation,
   quantification-level, and result-I/O operations; only integration may import lower-level result
@@ -52,7 +52,7 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
   blanket exclusions, file-wide ignores, or unqualified `# type: ignore`.
 - Ruff is the sole formatter and linter. Do not add Black, isort, Flake8, mypy,
   or another overlapping formatter/type checker.
-- Keep `__init__.py` empty and import from defining modules inside this package. Other anndata_bridge packages import this one only from `apb_proteobench.api`, and it imports them only from theirs.
+- Keep `__init__.py` empty and import from defining modules inside this package. Other anndata_bridge packages import this one only from `apb_proteobench.api`, and it imports them only from theirs. The CLI imports this package only from `apb_proteobench.api` too.
 - Use Google-style docstrings for public APIs and the configured 100-character
   line length.
 

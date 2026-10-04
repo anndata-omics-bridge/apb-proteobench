@@ -15,7 +15,8 @@ from typing import Protocol
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
+
+from apb_proteobench.api import SubmissionContent
 
 RESULT_PERFORMANCE_FILENAME = "result_performance.csv"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -88,18 +89,6 @@ class ResultPerformanceFiles:
 
     csv: Path
     proteobot_json: Path
-
-
-@dataclass(frozen=True, slots=True)
-class SubmissionContent:
-    """Selected quantitative content used for a new ProteoBot upload identity."""
-
-    matrix: NDArray[np.float32] | NDArray[np.float64]
-    feature_ids: pd.Index
-    reported_proteins: pd.Series
-    raw_files: tuple[str, ...]
-    conditions: tuple[str, ...]
-    settings: Mapping[str, object]
 
 
 class _Syncable(Protocol):

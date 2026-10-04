@@ -12,9 +12,9 @@ import pytest
 
 from apb_proteobench.configuration.entrapment import load_packaged_entrapment_module
 from apb_proteobench.configuration.load import (
-    available_modules,
+    PACKAGED_MODULE_NAMES,
+    SUPPORTED_MODULE_NAMES,
     load_packaged_module,
-    packaged_module_names,
 )
 
 EXPECTED_SUPPORTED_MODULE_HASHES = {
@@ -44,14 +44,14 @@ EXPECTED_SDRF_HASHES = {
 EXPECTED_PACKAGED_MODULE_HASHES = {
     **EXPECTED_SUPPORTED_MODULE_HASHES,
     "denovo_dda_hcd": "d53cd86c02228c57cc35aba996e44c4739ce49e4de8fe57bf556a266d18460b7",
-    "entrapment_dia_astral": ("bc7d4d4ab42ed5273512d6eae8ce161d6c2414024d24de419fd9bac9911cd7a5"),
+    "entrapment_dia_astral": ("c6740cd8f2954b9b137bc870437331c53eb92c09a0e53650a30884cd79692db1"),
 }
 
 
 def test_every_supported_module_is_packaged_validated_and_pinned() -> None:
-    assert available_modules() == tuple(EXPECTED_SUPPORTED_MODULE_HASHES)
+    assert tuple(EXPECTED_SUPPORTED_MODULE_HASHES) == SUPPORTED_MODULE_NAMES
 
-    loaded = {name: load_packaged_module(name) for name in available_modules()}
+    loaded = {name: load_packaged_module(name) for name in SUPPORTED_MODULE_NAMES}
 
     assert {name: module.source.sha256 for name, module in loaded.items()} == (
         EXPECTED_SUPPORTED_MODULE_HASHES
@@ -71,12 +71,12 @@ def test_every_supported_module_is_packaged_validated_and_pinned() -> None:
 
 
 def test_every_upstream_module_document_is_packaged_and_pinned() -> None:
-    assert packaged_module_names() == tuple(EXPECTED_PACKAGED_MODULE_HASHES)
+    assert tuple(EXPECTED_PACKAGED_MODULE_HASHES) == PACKAGED_MODULE_NAMES
 
     module_resources = files("apb_proteobench.data.modules")
     hashes = {
         name: hashlib.sha256(module_resources.joinpath(f"{name}.toml").read_bytes()).hexdigest()
-        for name in packaged_module_names()
+        for name in PACKAGED_MODULE_NAMES
     }
 
     assert hashes == EXPECTED_PACKAGED_MODULE_HASHES

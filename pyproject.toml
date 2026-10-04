@@ -22,13 +22,12 @@ dependencies = [
     "numpy>=2,<3",
     "pandas>=2.3,<4",
     "polars>=1.38,<2",
-    "protein-fasta>=0.3,<0.4",
     "pydantic>=2.12,<3",
     "scipy>=1.16,<2",
 ]
 
 [project.scripts]
-apb-proteobench = "apb_proteobench.cli:main"
+apb-proteobench = "apb_proteobench.cli.app:main"
 
 [project.urls]
 Documentation = "https://anndata-omics-bridge.github.io/apb-proteobench/"
@@ -124,4 +123,3 @@ known_first_party = ["apb_proteobench"]
 apb2 = { path = "../apb2", editable = true }
 apb-catalog = { path = "../apb-catalog", editable = true }
 apb-fasta = { path = "../apb-fasta", editable = true }
-protein-fasta = { path = "../protein_fasta", editable = true }

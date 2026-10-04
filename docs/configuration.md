@@ -67,16 +67,15 @@ eight HYE/HY modules used by the legacy APB integration and the plasma module:
 
 ### Load from Python
 
-List and load them without locating package files:
+Load them by name without locating package files:
 
 ```python
-from apb_proteobench.configuration.load import available_modules, load_packaged_module
+from apb_proteobench.api import load_packaged_module
 
-print(available_modules())
 module = load_packaged_module("dia_singlecell")
 ```
 
-`available_modules()` returns only modules validated for the current quantitative scorer.
+`load_packaged_module()` accepts only these nine modules, which are validated for the current quantitative scorer; any other name raises and lists them.
 
 ## Packaged for planned support
 
@@ -88,15 +87,7 @@ upstream catalogue:
 | `denovo_dda_hcd` | de novo DDA HCD | different schema; not implemented |
 | `entrapment_dia_astral` | DIA Astral entrapment | scored by `run entrapment`; TOML plus SDRF of the three HeLa runs |
 
-Use `packaged_module_names()` to inventory all 11 documents. `available_modules()` deliberately
-returns only the nine modules accepted by `load_packaged_module()` and the current quantitative
-scorer:
-
-```python
-from apb_proteobench.configuration.load import packaged_module_names
-
-print(packaged_module_names())
-```
+`load_packaged_module()` refuses both. `load_packaged_entrapment_module("entrapment_dia_astral")` loads the entrapment module for `EntrapmentAnalyzer`; see the [Python API](api.md#score-entrapment).
 
 The nine supported modules are derived from ProteoBench's module TOMLs, with their sample design moved into packaged SDRFs; the two others are unchanged copies. All files are pinned by checksum. Their source revision, original paths,
 and support status are recorded in

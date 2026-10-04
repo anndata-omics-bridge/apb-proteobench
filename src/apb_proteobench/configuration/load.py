@@ -98,21 +98,11 @@ def load_module(path: Path) -> LoadedModule:
     return _load_module(payload, source.name, document, source.parent / document.sdrf)
 
 
-def available_modules() -> tuple[str, ...]:
-    """Return the packaged modules supported by the quantitative scorer."""
-    return SUPPORTED_MODULE_NAMES
-
-
-def packaged_module_names() -> tuple[str, ...]:
-    """Return the stable names of all packaged ProteoBench module documents."""
-    return PACKAGED_MODULE_NAMES
-
-
-def load_packaged_module(name: str, /) -> LoadedModule:
+def load_packaged_module(name: str) -> LoadedModule:
     """Load one packaged quantitative benchmark module by its stable name.
 
     Args:
-        name: A value returned by :func:`available_modules`.
+        name: One of the packaged modules the quantitative scorer supports.
 
     Returns:
         The validated settings and source identity of the packaged module.

@@ -8,11 +8,10 @@ from pathlib import Path
 import polars as pl
 import pytest
 from apb2.api import ParseRuleCompiler, read_parsed_levels
-from protein_fasta.api import ProteinDatabase, refseq, uniprotkb
+from apb_fasta.api import FastaAnnotator
 
 from apb_proteobench.api import EntrapmentAnalyzer
-from apb_proteobench.calculation.entrapment import fasta_pairs
-from apb_proteobench.cli import app
+from apb_proteobench.cli.app import app
 from apb_proteobench.configuration.entrapment import load_packaged_entrapment_module
 from apb_proteobench.entrapment import CATALOGUE, DIAGNOSTICS_SLOT
 
@@ -89,15 +88,15 @@ def _write_inputs(folder: Path) -> tuple[Path, Path, Path]:
     return data, parameters, fasta
 
 
-def _pairs(fasta: Path) -> pl.DataFrame:
-    return fasta_pairs(ProteinDatabase(uniprotkb, refseq).parse((fasta,)))
+def _fasta(fasta: Path) -> FastaAnnotator:
+    return FastaAnnotator.read((fasta,))
 
 
 def test_every_catalogued_q_value_kind_is_scored(tmp_path: Path) -> None:
     data, parameters, fasta = _write_inputs(tmp_path)
     parsed = ParseRuleCompiler(data, parameters, requested_levels=("ion",)).compile().parse()
     analyzer = EntrapmentAnalyzer(
-        load_packaged_entrapment_module("entrapment_dia_astral"), pairs=_pairs(fasta)
+        load_packaged_entrapment_module("entrapment_dia_astral"), _fasta(fasta)
     )
 
     result = analyzer.analyze(parsed)
@@ -134,7 +133,7 @@ def test_a_result_scored_once_refuses_a_second_scoring(tmp_path: Path) -> None:
     data, parameters, fasta = _write_inputs(tmp_path)
     parsed = ParseRuleCompiler(data, parameters, requested_levels=("ion",)).compile().parse()
     analyzer = EntrapmentAnalyzer(
-        load_packaged_entrapment_module("entrapment_dia_astral"), pairs=_pairs(fasta)
+        load_packaged_entrapment_module("entrapment_dia_astral"), _fasta(fasta)
     )
     scored = analyzer.analyze(parsed).parsed
 
@@ -147,13 +146,8 @@ def test_only_packaged_entrapment_modules_load() -> None:
         load_packaged_entrapment_module("dia_astral")
 
 
-@pytest.mark.parametrize("database", [False, True])
-def test_cli_run_entrapment_writes_a_scored_result(tmp_path: Path, database: bool) -> None:
+def test_cli_run_entrapment_writes_a_scored_result(tmp_path: Path) -> None:
     data, parameters, fasta = _write_inputs(tmp_path)
-    if database:
-        parquet = tmp_path / "peptides.parquet"
-        ProteinDatabase(uniprotkb, refseq).write_parquet((fasta,), parquet)
-        fasta = parquet
     target = tmp_path / "scored.h5ad"
     timings = tmp_path / "timings"
 

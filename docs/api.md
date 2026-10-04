@@ -10,8 +10,7 @@ Construct one complete analyzer from a validated ProteoBench module, then pass i
 from pathlib import Path
 
 from apb2.api import read_parsed_levels, write_parsed_levels
-from apb_proteobench.api import ProteoBenchAnalyzer
-from apb_proteobench.api import load_module
+from apb_proteobench.api import ProteoBenchAnalyzer, load_module
 
 parsed = read_parsed_levels(Path("results/fasta-checked.h5mu"))
 module = load_module(Path("module_settings.toml"))
@@ -24,13 +23,14 @@ print(result.layers["Intensity"].analysis.scores.nr_feature)
 write_parsed_levels(result.parsed, Path("results/scored.h5mu"))
 ```
 
+`load_packaged_module(name)` loads a packaged module instead; see [Configuration](configuration.md).
+
 `analyze()` validates complete sample coverage, attaches the normalized module annotation, resolves the requested quantitative layers, calculates diagnostics and scores, and returns a new storage-neutral APB2 result. It does not mutate the input or perform physical I/O.
 
 `ProteoBenchAnalysisResult` contains only analysis-owned values:
 
 - `parsed`: annotated and scored `ParsedLevels`
 - `configuration`: validated module settings
-- `selection`: resolved layer selection
 - `layers`: ordered results by logical layer name
 
 Input paths, output paths, vendor detection, search parameters, FASTA reports, and persistence outcomes belong to the calling application and are not part of this result.
@@ -75,9 +75,7 @@ from pathlib import Path
 
 from apb2.api import ParseRuleCompiler, write_parsed_levels
 from apb_fasta.api import FastaAnnotator
-from apb_proteobench.api import ProteoBenchAnalyzer
-from apb_proteobench.api import load_module
-from protein_fasta.api import ProteinDatabase, refseq, uniprotkb
+from apb_proteobench.api import ProteoBenchAnalyzer, load_module
 
 compiler = ParseRuleCompiler(
     Path("report.tsv"),
@@ -87,8 +85,7 @@ compiler = ParseRuleCompiler(
 )
 parsed = compiler.compile().parse()
 
-proteins = ProteinDatabase(uniprotkb, refseq).parse((Path("proteins.fasta"),))
-verified = FastaAnnotator(proteins).verify_peptides(parsed)
+verified = FastaAnnotator.read((Path("proteins.fasta"),)).verify_peptides(parsed)
 
 module = load_module(Path("module_settings.toml"))
 result = ProteoBenchAnalyzer(module).analyze(verified.parsed)
@@ -97,23 +94,20 @@ write_parsed_levels(result.parsed, Path("results/scored.h5ad"))
 
 This is the same ownership sequence used by the CLI: APB2 converts, APB FASTA verifies, APB ProteoBench analyzes, and APB2 persists. No APB ProteoBench wrapper duplicates APB2 conversion or storage.
 
-## Lower-level calculation
+## Score entrapment
 
-`analyze_level()` remains available for callers that already own a `QuantitativeLevelInput` and want calculation output without annotation or a persistable APB artifact:
+`EntrapmentAnalyzer` scores ProteoBench's entrapment module. It takes the packaged module and the entrapment FASTA as apb-fasta reads it, from which it derives the target/entrapment pairs:
 
 ```python
-from apb_proteobench.workflow import (
-    MixedSpeciesDiagnostics,
-    ProteoBenchCompatibleScoring,
-    analyze_level,
-)
+from pathlib import Path
 
-analysis = analyze_level(
-    quantitative_input,
-    configuration,
-    MixedSpeciesDiagnostics(),
-    ProteoBenchCompatibleScoring(),
-)
+from apb_fasta.api import FastaAnnotator
+from apb_proteobench.api import EntrapmentAnalyzer, load_packaged_entrapment_module
+
+fasta = FastaAnnotator.read((Path("entrapment.fasta"),))
+module = load_packaged_entrapment_module("entrapment_dia_astral")
+result = EntrapmentAnalyzer(module, fasta).analyze(fasta.verify_peptides(parsed).parsed)
+print(result.scores["q_value"].paired_FDP)
 ```
 
-The calculation consumes pandas/NumPy values, not AnnData, MuData, paths, or `ParsedLevels`. `ProteoBenchAnalyzer` owns the translation between that calculation boundary and APB2's canonical result.
+`analyze()` labels every precursor, scores each q-value kind the result offers, and returns a new APB2 result with the labels in `varm`. It does not perform physical I/O.
