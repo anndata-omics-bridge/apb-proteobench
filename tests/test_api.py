@@ -17,6 +17,7 @@ from apb2.api import (
 )
 from loguru import logger
 
+from apb_proteobench import api as public_api
 from apb_proteobench.annotation import ProteoBenchAnnotationParser
 from apb_proteobench.api import ProteoBenchAnalysisResult, ProteoBenchAnalyzer
 from apb_proteobench.calculation.contracts import QuantitativeLevelInput
@@ -688,3 +689,13 @@ def test_cli_help_describes_every_argument_and_parameter(
 def _object(value: JsonValue) -> dict[str, JsonValue]:
     assert isinstance(value, dict)
     return value
+
+
+def test_api_exports_exactly_the_approved_names() -> None:
+    assert sorted(public_api.__all__) == [
+        "EntrapmentAnalysisResult",
+        "EntrapmentAnalyzer",
+        "ProteoBenchAnalysisResult",
+        "ProteoBenchAnalyzer",
+        "load_module",
+    ]

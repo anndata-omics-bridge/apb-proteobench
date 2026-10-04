@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from apb2.api import ParsedLevels
 
 from apb_proteobench.annotation import ProteoBenchAnnotationParser
-from apb_proteobench.configuration.load import LoadedModule
+from apb_proteobench.configuration.load import LoadedModule, load_module
 from apb_proteobench.configuration.schema import ModuleSettings
 from apb_proteobench.entrapment import EntrapmentAnalysisResult, EntrapmentAnalyzer
 from apb_proteobench.integration import (
@@ -53,8 +53,6 @@ class ProteoBenchAnalyzer:
     def __init__(
         self,
         module: LoadedModule,
-        /,
-        *,
         layers: Sequence[str] | None = None,
         diagnostic_method: DiagnosticMethod = _DEFAULT_DIAGNOSTICS,
         scoring_method: ScoringMethod = _DEFAULT_SCORING,
@@ -69,7 +67,7 @@ class ProteoBenchAnalyzer:
         self._diagnostic_method = diagnostic_method
         self._scoring_method = scoring_method
 
-    def analyze(self, parsed: ParsedLevels, /) -> ProteoBenchAnalysisResult:
+    def analyze(self, parsed: ParsedLevels) -> ProteoBenchAnalysisResult:
         """Annotate and score canonical APB2 levels without physical I/O."""
         annotated = self._annotation_parser.parse(parsed).annotate()
         layers: dict[str, ScoredLayerResult] = {}
@@ -100,4 +98,5 @@ __all__ = [
     "EntrapmentAnalyzer",
     "ProteoBenchAnalysisResult",
     "ProteoBenchAnalyzer",
+    "load_module",
 ]

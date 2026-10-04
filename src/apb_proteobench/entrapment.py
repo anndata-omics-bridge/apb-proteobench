@@ -48,12 +48,12 @@ class EntrapmentAnalyzer:
 
     __slots__ = ("_configuration", "_pairs")
 
-    def __init__(self, module: EntrapmentModuleSettings, /, *, pairs: pl.DataFrame) -> None:
+    def __init__(self, module: EntrapmentModuleSettings, pairs: pl.DataFrame) -> None:
         """Create an analyzer; ``pairs`` comes from :func:`fasta_pairs`."""
         self._configuration = module
         self._pairs = pairs
 
-    def analyze(self, parsed: ParsedLevels, /) -> EntrapmentAnalysisResult:
+    def analyze(self, parsed: ParsedLevels) -> EntrapmentAnalysisResult:
         """Label precursors and score every q-value kind the result offers, without I/O."""
         settings = self._configuration
         catalog = Catalog(parsed, CATALOGUE)

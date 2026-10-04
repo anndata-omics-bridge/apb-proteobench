@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-10-04
+
+- `api.py` exports `load_module`. `ProteoBenchAnalyzer`, `EntrapmentAnalyzer` and `load_module` drop the `/` and `*` signature markers; every call that worked before still works.
+
 ## 2026-10-03
 
 - **Breaking:** `run entrapment` drops `--pairs`: labels and pairs come from the entrapment FASTA, which reproduces ProteoBench's pair file exactly (see [compatibility](docs/compatibility.md)). `fasta_pairs(proteins)` replaces `read_pairs(path)`; `pair` becomes text, the unmodified pair index plus each modification site. The FASTA argument of `run quant` and `run entrapment` may be a protein-fasta database Parquet file.

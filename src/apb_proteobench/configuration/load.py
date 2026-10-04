@@ -90,7 +90,7 @@ class LoadedModule:
         }
 
 
-def load_module(path: Path, /) -> LoadedModule:
+def load_module(path: Path) -> LoadedModule:
     """Load and validate one module TOML and the SDRF it names, relative to its directory."""
     source = path.expanduser().resolve()
     payload = source.read_bytes()
