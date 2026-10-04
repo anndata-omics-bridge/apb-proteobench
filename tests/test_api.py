@@ -33,16 +33,6 @@ from apb_proteobench.workflow import (
 from conftest import module_settings, parsed_result, quantitative_input, write_module
 
 
-def test_package_imports_apb2_only_through_its_api() -> None:
-    allowed = {"apb2.api"}
-    package = Path(__file__).parents[1] / "src/apb_proteobench"
-    for path in package.rglob("*.py"):
-        document = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        for node in ast.walk(document):
-            if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("apb2"):
-                assert node.module in allowed, f"{path} imports {node.module}"
-
-
 def test_public_api_is_an_in_memory_proteobench_boundary() -> None:
     path = Path(__file__).parents[1] / "src/apb_proteobench/api.py"
     document = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))

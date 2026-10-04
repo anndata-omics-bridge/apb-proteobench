@@ -8,7 +8,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 from apb2.api import ParseRuleCompiler, read_parsed_levels
-from protein_fasta.frame import ProteinDatabase, refseq, uniprotkb
+from protein_fasta.api import ProteinDatabase, refseq, uniprotkb
 
 from apb_proteobench.api import EntrapmentAnalyzer
 from apb_proteobench.calculation.entrapment import fasta_pairs

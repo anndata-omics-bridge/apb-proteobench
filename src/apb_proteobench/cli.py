@@ -19,12 +19,15 @@ from apb2.api import (
     read_parsed_levels,
     write_parsed_levels,
 )
-from apb_fasta.api import FastaAnnotationResult, FastaAnnotator
-from apb_fasta.calculation.results import FastaAnnotationReports
-from apb_fasta.configuration import FastaAnnotationParameters
+from apb_fasta.api import (
+    FastaAnnotationParameters,
+    FastaAnnotationReports,
+    FastaAnnotationResult,
+    FastaAnnotator,
+)
 from cyclopts import App, Parameter
 from loguru import logger
-from protein_fasta.frame import ProteinDatabase, refseq, uniprotkb
+from protein_fasta.api import ProteinDatabase, refseq, uniprotkb
 from pydantic import ValidationError
 
 from apb_proteobench.api import (

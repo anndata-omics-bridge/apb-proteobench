@@ -33,35 +33,35 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: anndata-omics-bridge/apb2
-          ref: dabe1f13555a0a0faf16da6fdf3b2535e0836dc7
+          ref: f6131af4b71562546b19af389060930ca4eec32c
           path: apb2
 
       - name: Check out compatible APB Catalog
         uses: actions/checkout@v6
         with:
           repository: anndata-omics-bridge/apb-catalog
-          ref: 4be659df4db133ccbbe87576d5a6cbb77f7e11b1
+          ref: c5e344c81522cd867523ef343e4d75d76019665e
           path: apb-catalog
 
       - name: Check out compatible APB FASTA
         uses: actions/checkout@v6
         with:
           repository: anndata-omics-bridge/apb-fasta
-          ref: 84cc5f6f80b71cd7326d14e6880d0909918fd4c3
+          ref: f8940777cca33aacc9370530927d6b7d735f03c3
           path: apb-fasta
 
       - name: Check out compatible protein-fasta
         uses: actions/checkout@v6
         with:
           repository: anndata-omics-bridge/protein-fasta
-          ref: 819841832ebb2dd761b619ac2b6d875515066fce
+          ref: 069af7a883c43caa56349e81f692527b4af16356
           path: protein_fasta
 
       - name: Check out compatible Prozor
         uses: actions/checkout@v6
         with:
           repository: anndata-omics-bridge/prozor
-          ref: 0c9fa0daa3396f23b4e4f03c4ae05674a66a2830
+          ref: d11f3a6ddd5632bb5092a96733aa7c9e007a579c
           path: prozor
 
       - name: Set up Python

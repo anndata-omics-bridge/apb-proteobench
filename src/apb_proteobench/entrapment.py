@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 
 import polars as pl
 from apb2.api import JsonValue, ParsedLevels
-from apb_catalog.catalog import Catalog, attach_snapshot
+from apb_catalog.api import Catalog, attach_snapshot
 
 from apb_proteobench.calculation.entrapment import (
     ENTRAPMENT_SOURCE_REVISION,

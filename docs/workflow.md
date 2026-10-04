@@ -91,7 +91,7 @@ from apb2.api import ParseRuleCompiler, write_parsed_levels
 from apb_fasta.api import FastaAnnotator
 from apb_proteobench.api import ProteoBenchAnalyzer
 from apb_proteobench.configuration.load import load_module
-from protein_fasta.frame import ProteinDatabase, refseq, uniprotkb
+from protein_fasta.api import ProteinDatabase, refseq, uniprotkb
 
 compiler = ParseRuleCompiler(
     Path("report.tsv"),
