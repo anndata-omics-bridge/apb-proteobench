@@ -13,6 +13,16 @@ license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "src/apb_proteobench/data/
 authors = [
     { name = "Witold Wolski", email = "wew@fgcz.ethz.ch" },
 ]
+keywords = ["proteomics", "proteobench", "benchmarking", "anndata", "mass spectrometry"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Typing :: Typed",
+]
 dependencies = [
     "apb2>=0.1,<0.2",
     "apb-catalog>=0.1,<0.2",

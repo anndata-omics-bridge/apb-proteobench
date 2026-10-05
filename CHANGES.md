@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-10-05
+
+- PyPI release setup: `.github/workflows/publish.yml` builds and checks the distributions, then publishes to PyPI through trusted publishing for a published GitHub release tagged `v<version>`; a manual run only builds and checks. README links point at the documentation site so they resolve on PyPI, README gains an installation section, and `pyproject.toml` adds keywords and classifiers.
+
 ## 2026-10-04
 
 - `run quant`, `run entrapment` and `benchmark` accept `--scores PATH`, writing the ProteoBench datapoint JSON in the layout of the upstream datapoints, one per q-value kind for entrapment, so APB scores can be compared with ProteoBench's.
