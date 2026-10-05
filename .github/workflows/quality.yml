@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: anndata-omics-bridge/apb-fasta
-          ref: e3e557cb5c8d28b22cc8e1426fd6f2985bd6d215
+          ref: e65d70849f585ed70a4215f31a79b8d97d4c0d82
           path: apb-fasta
 
       - name: Check out compatible protein-fasta
@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: anndata-omics-bridge/prozor
-          ref: 5daf8ee4053c9ce5635ad5388d225dc43ab091c0
+          ref: c7cf54a6d9a346463a7568ac63c14a012b392aa0
           path: prozor
 
       - name: Set up Python
