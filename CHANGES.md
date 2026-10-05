@@ -2,6 +2,7 @@
 
 ## 2026-10-05
 
+- README shows the Zenodo DOI badge, linking the concept DOI that resolves to the latest archived release.
 - 0.1.1: `CITATION.cff` records the author's ORCID, so the Zenodo archive of each GitHub release carries complete citation metadata and a DOI. The README names `apb-catalog` among the declared APB dependencies. CI checks out the 0.1.1 siblings and protein-fasta 0.3.1.
 - PyPI release setup: `.github/workflows/publish.yml` builds and checks the distributions, then publishes to PyPI through trusted publishing for a published GitHub release tagged `v<version>`; a manual run only builds and checks. README links point at the documentation site so they resolve on PyPI, README gains an installation section, and `pyproject.toml` adds keywords and classifiers.
 
