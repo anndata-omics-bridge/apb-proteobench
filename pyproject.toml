@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "apb-proteobench"
-version = "0.1.0"
+version = "0.1.1"
 description = "ProteoBench annotation, diagnostics, and scoring for APB2 results"
 readme = "README.md"
 requires-python = ">=3.13"

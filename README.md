@@ -37,7 +37,7 @@ apb-proteobench benchmark results/aggregated.h5mu module_settings.toml results/s
 
 The `apb-aggregate` step is optional: include it only when the scored level must be derived from a lower one. Omit it and `benchmark` reads `results/fasta-checked.h5mu` directly.
 
-APB ProteoBench declares only `apb2` and `apb-fasta`, and reaches aggregation solely as a subprocess.
+APB ProteoBench declares `apb2`, `apb-fasta` and `apb-catalog`, and reaches aggregation solely as a subprocess.
 
 The CLI intentionally exposes only `run` and `benchmark`; APB2 owns conversion and persistence, while the Python API exposes in-memory ProteoBench analysis over canonical `ParsedLevels`. `benchmark` combines annotation and scoring for an existing APB2 result. Scoring uses one abundance layer: `--layer NAME`, by default `X`, the APB primary layer projected to AnnData `X`. Per-layer diagnostics live in `varm["proteobench:<layer-name>"]`, while selection provenance and layer-keyed scores live in `metadata["proteobench"]`. See the [documentation](https://anndata-omics-bridge.github.io/apb-proteobench/).
 
