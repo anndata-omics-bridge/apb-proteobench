@@ -1,6 +1,7 @@
 # APB ProteoBench
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23151469.svg)](https://doi.org/10.5281/zenodo.23151469)
+[![PyPI](https://img.shields.io/pypi/v/apb-proteobench.svg)](https://pypi.org/project/apb-proteobench/)
 
 ProteoBench annotation, mixed-species diagnostics, and scoring for storage-neutral APB2
 results. HYE and HY use the same configuration-driven calculation.
