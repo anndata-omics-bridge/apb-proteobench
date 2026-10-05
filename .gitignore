@@ -9,3 +9,4 @@ build/
 dist/
 public/
 *.egg-info/
+uv.lock

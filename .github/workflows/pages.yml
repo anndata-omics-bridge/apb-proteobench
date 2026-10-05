@@ -74,9 +74,10 @@ jobs:
         with:
           version: "0.9.8"
           enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
 
       - name: Build documentation
-        run: uv run --frozen --group docs zensical build --clean --strict
+        run: uv run --group docs zensical build --clean --strict
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
