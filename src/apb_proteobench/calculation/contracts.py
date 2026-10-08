@@ -31,5 +31,8 @@ class QuantitativeLevelInput:
     feature_ids: pd.Index
     reported_proteins: pd.Series
     matched_organisms: pd.Series
-    matches_contaminant: NDArray[np.bool_]
+    contaminants: NDArray[np.bool_]
+    """Contaminant by the FASTA (apb-fasta) or by the vendor's own marking (``apb_Contaminant``)."""
+    decoys: NDArray[np.bool_]
+    """Marked decoy by the vendor (``apb_Decoy``)."""
     level: QuantificationLevel

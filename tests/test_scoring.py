@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 
 import numpy as np
@@ -14,12 +15,13 @@ from apb_proteobench.calculation.intermediate import align_runs, compute_interme
 from apb_proteobench.calculation.mapping import render_proteobench_features
 from apb_proteobench.calculation.metrics import ScoreConfig, build_scores, compute_roc_auc
 from apb_proteobench.configuration.load import load_module
+from apb_proteobench.integration import extract_layer
 from apb_proteobench.workflow import (
     MixedSpeciesDiagnostics,
     ProteoBenchCompatibleScoring,
     analyze_level,
 )
-from conftest import matrix_values, module_settings, quantitative_input
+from conftest import matrix_values, module_settings, parsed_result, quantitative_input
 
 GOLDEN = Path(__file__).parent / "data" / "small_legacy_intermediate.txt"
 
@@ -34,6 +36,25 @@ def test_hye_intermediate_matches_legacy_golden() -> None:
         check_dtype=False,
     )
     assert result.varm["included"].tolist() == [True, True, True, False, False, False]
+
+
+def test_a_vendor_decoy_is_excluded_like_a_contaminant() -> None:
+    inputs = dataclasses.replace(
+        quantitative_input(), decoys=np.array([True, False, False, False, False, False])
+    )
+
+    result = MixedSpeciesDiagnostics().diagnose(inputs, module_settings())
+
+    assert result.varm["included"].tolist() == [False, True, True, False, False, False]
+
+
+def test_scoring_refuses_a_result_without_vendor_markings() -> None:
+    parsed = parsed_result()
+    level = parsed.levels["ion"]
+    level.var.frame = level.var.frame.drop("apb_Decoy")
+
+    with pytest.raises(ValueError, match=r"vendor markings; missing \['apb_Decoy'\]"):
+        extract_layer(parsed, module_settings(), "Intensity")
 
 
 def test_hy_uses_the_same_configuration_driven_calculation() -> None:
@@ -79,7 +100,8 @@ def test_single_cell_hy_module_matches_hand_computed_ratios() -> None:
         feature_ids=pd.Index(["H/2", "Y/2"]),
         reported_proteins=pd.Series(["P1_HUMAN", "P2_YEAST"]),
         matched_organisms=pd.Series(["HUMAN", "YEAST"]),
-        matches_contaminant=np.array([False, False]),
+        contaminants=np.array([False, False]),
+        decoys=np.array([False, False]),
         level="ion",
     )
 
@@ -104,7 +126,8 @@ def test_dense_and_sparse_diagnostics_are_equal() -> None:
         inputs.matrix,
         inputs.feature_ids,
         inputs.matched_organisms,
-        inputs.matches_contaminant,
+        inputs.contaminants,
+        inputs.decoys,
         configuration,
         design,
         "ion",
@@ -113,7 +136,8 @@ def test_dense_and_sparse_diagnostics_are_equal() -> None:
         sparse.csr_matrix(np.nan_to_num(matrix_values(), nan=0.0)),
         inputs.feature_ids,
         inputs.matched_organisms,
-        inputs.matches_contaminant,
+        inputs.contaminants,
+        inputs.decoys,
         configuration,
         design,
         "ion",

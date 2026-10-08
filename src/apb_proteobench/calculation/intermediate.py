@@ -153,7 +153,8 @@ def compute_intermediate(
     matrix: QuantMatrix,
     feature_ids: pd.Index,
     matched_organisms: pd.Series,
-    matches_contaminant: NDArray[np.bool_],
+    contaminants: NDArray[np.bool_],
+    decoys: NDArray[np.bool_],
     module_settings: ModuleSettings,
     design: RunDesign,
     level: QuantificationLevel,
@@ -168,8 +169,8 @@ def compute_intermediate(
         raise ValueError("quantification rows and aligned sample design have different lengths")
     if columns != len(feature_ids):
         raise ValueError("quantification columns and feature identifiers have different lengths")
-    if len(matched_organisms) != len(feature_ids) or len(matches_contaminant) != len(feature_ids):
-        raise ValueError("FASTA matches and feature identifiers have different lengths")
+    if any(len(values) != len(feature_ids) for values in (matched_organisms, contaminants, decoys)):
+        raise ValueError("FASTA matches, markings and feature identifiers have different lengths")
 
     features = feature_ids.to_series()
     organisms = ";" + matched_organisms.astype("string").fillna("") + ";"
@@ -180,8 +181,8 @@ def compute_intermediate(
         for flag, species in module_settings.species_mapper.items()
     }
     unique = np.sum(np.vstack(list(species_flags.values())), axis=0, dtype=np.int64)
-    contaminants = np.asarray(matches_contaminant, dtype=np.bool_)
-    decoys = np.zeros(len(feature_ids), dtype=np.bool_)
+    contaminants = np.asarray(contaminants, dtype=np.bool_)
+    decoys = np.asarray(decoys, dtype=np.bool_)
 
     conditions = tuple(sorted(set(design.conditions.tolist())))
     stats, nr_observed = _derive_condition_statistics(

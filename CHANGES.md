@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-10-08
+
+- Scoring drops the decoys apb2 marks `apb_Decoy` (the `decoys` mask was all false), and counts as contaminants the features apb2 marks `apb_Contaminant` besides apb-fasta's FASTA contaminants, so contaminants that MaxQuant and others add themselves, absent from the FASTA, are excluded too. A result without the two apb2 columns is refused.
+
 ## 2026-10-05
 
 - `uv.lock` is no longer committed: `make sync` and CI resolve the environment from `pyproject.toml`, `make check` drops `uv lock --check`, CI caches by `pyproject.toml`, and the dev group pins `ruff==0.16.10` and `pyright==1.1.414` so lint and type results stay stable.

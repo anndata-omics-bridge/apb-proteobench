@@ -78,7 +78,8 @@ def quantitative_input(*, hy: bool = False) -> QuantitativeLevelInput:
         matched_organisms=pd.Series(
             ["HUMAN", "YEAST", "HUMAN" if hy else "ECOLI", "HUMAN", "HUMAN;YEAST", ""]
         ),
-        matches_contaminant=np.array([False, False, False, True, False, False]),
+        contaminants=np.array([False, False, False, True, False, False]),
+        decoys=np.zeros(6, dtype=np.bool_),
         level="ion",
     )
 
@@ -92,7 +93,14 @@ def parsed_result() -> ParsedLevels:
     level = ParsedLevel.build(
         pl.DataFrame({"Run": ["run_A1", "run_A2", "run_B1", "run_B2"]}),
         ("Run",),
-        pl.DataFrame({"feature": features, "Protein_Ids": proteins}),
+        pl.DataFrame(
+            {
+                "feature": features,
+                "Protein_Ids": proteins,
+                "apb_Decoy": inputs.decoys,
+                "apb_Contaminant": [False] * len(features),
+            }
+        ),
         ("feature",),
         {"protein_assignment": "Protein_Ids"},
         primary_layer="Intensity",
@@ -102,7 +110,7 @@ def parsed_result() -> ParsedLevels:
             "fasta_validation": pl.DataFrame(
                 {
                     "fasta_matching_organisms": inputs.matched_organisms.tolist(),
-                    "fasta_matches_contaminant": inputs.matches_contaminant,
+                    "fasta_matches_contaminant": inputs.contaminants,
                 }
             )
         },

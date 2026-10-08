@@ -4,7 +4,7 @@ apb-proteobench reproduces ProteoBench's quantification scores from APB2 results
 
 ## Feature exclusion uses FASTA matches
 
-Scoring drops contaminant features and features of more than one species (`min_count_multispec`). APB decides both from apb-fasta's `varm["fasta_validation"]`: every FASTA protein containing the feature's peptide gives `fasta_matching_organisms` and `fasta_matches_contaminant`. ProteoBench decides them from each tool's column mapped to `Proteins`.
+Scoring drops decoys, contaminant features and features of more than one species (`min_count_multispec`). APB decides species and FASTA contaminants from apb-fasta's `varm["fasta_validation"]`: every FASTA protein containing the feature's peptide gives `fasta_matching_organisms` and `fasta_matches_contaminant`. Decoys, and contaminants the software flags or adds itself such as MaxQuant's `CON__`, come from apb2's `apb_Decoy` and `apb_Contaminant`. ProteoBench decides them from each tool's column mapped to `Proteins`.
 
 For DIA-NN, whose `Protein.Ids` lists every protein containing the peptide, both rules agree. Tools whose `Proteins` column is a protein group or a tool-specific list lose features that APB now recognises as shared with a contaminant or a second species.
 

@@ -165,6 +165,7 @@ def extract_layer(
     fasta = level.varm.get("fasta_validation")
     if fasta is None or "fasta_matches_contaminant" not in fasta.columns:
         raise ValueError("ProteoBench scoring requires apb-fasta peptide verification")
+    markings = _vendor_markings(level)
     matrix = (
         level.layers[layer_name].quantitative_values().to_numpy().astype(np.float64, copy=False).T
     )
@@ -177,7 +178,9 @@ def extract_layer(
             feature_ids=pd.Index(level.var.frame.get_column(feature).cast(pl.String).to_list()),
             reported_proteins=level.var.frame.get_column(proteins).to_pandas(),
             matched_organisms=fasta.get_column("fasta_matching_organisms").to_pandas(),
-            matches_contaminant=fasta.get_column("fasta_matches_contaminant").to_numpy(),
+            contaminants=fasta.get_column("fasta_matches_contaminant").to_numpy()
+            | markings.get_column("apb_Contaminant").to_numpy(),
+            decoys=markings.get_column("apb_Decoy").to_numpy(),
             level=level_name,
         ),
         roles=ResolvedRoles(
@@ -277,6 +280,14 @@ def _single_feature_key(level: ParsedLevel) -> str:
             f"got {list(level.var.key_columns)}"
         )
     return level.var.key_columns[0]
+
+
+def _vendor_markings(level: ParsedLevel) -> pl.DataFrame:
+    """The decoys and contaminants apb2 marked from the vendor's own output."""
+    missing = sorted({"apb_Decoy", "apb_Contaminant"} - set(level.var.frame.columns))
+    if missing:
+        raise ValueError(f"ProteoBench scoring requires apb2's vendor markings; missing {missing}")
+    return level.var.frame.select("apb_Decoy", "apb_Contaminant")
 
 
 def _protein_role(level: ParsedLevel) -> str:
