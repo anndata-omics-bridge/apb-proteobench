@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, replace
@@ -15,6 +16,7 @@ import polars as pl
 from apb2.api import JsonValue, ParsedLevel, ParsedLevels
 from numpy.typing import NDArray
 
+from apb_proteobench.annotation import PROTEOBENCH_SCHEMA_VERSION
 from apb_proteobench.calculation.contracts import QuantitativeLevelInput
 from apb_proteobench.calculation.intermediate import align_runs
 from apb_proteobench.calculation.metrics import (
@@ -221,9 +223,16 @@ def persist_results(
         )
     level_metadata = deepcopy(level.metadata)
     tool = _tool_section(level_metadata)
-    tool["scoring"] = layer_records
+    _object_field(tool, "result")["scoring"] = layer_records
+    _list_field(tool, "summary").extend(
+        entry for selected in results.values() for entry in _scoring_summary(selected)
+    )
+    _list_field(tool, "details").extend(
+        {"slot": "varm", "name": selected.diagnostics_slot} for selected in results.values()
+    )
     root_metadata = deepcopy(parsed.metadata)
     root_tool = _tool_section(root_metadata)
+    root_tool["schema_version"] = PROTEOBENCH_SCHEMA_VERSION
     provenance = root_tool.setdefault("provenance", {})
     if not isinstance(provenance, dict):
         raise ValueError("ProteoBench provenance must be an object")
@@ -250,7 +259,6 @@ def diagnostics_slot(layer_name: str, /) -> str:
 def _result_record(results: Mapping[str, ScoredLayerResult]) -> dict[str, JsonValue]:
     first_result = next(iter(results.values())).analysis
     return {
-        "schema_version": "3",
         "compatibility_version": PROTEOBENCH_COMPATIBILITY_VERSION,
         "source_revision": PROTEOBENCH_SOURCE_REVISION,
         "layers": list(results),
@@ -267,10 +275,44 @@ def _layer_result_record(
         raise TypeError("ProteoBench result serialization did not produce JSON objects")
     return {
         "layer_name": result.layer_name,
-        "diagnostics": f"varm:{result.diagnostics_slot}",
         "column_roles": result.roles.as_json(),
         "scores": cast(dict[str, JsonValue], score_document),
     }
+
+
+def _scoring_summary(result: ScoredLayerResult) -> list[JsonValue]:
+    """One layer's headline scores: features scored and the global epsilon errors.
+
+    A score ProteoBench leaves undefined is stored as ``null`` and needs attention.
+    """
+    scores = result.analysis.scores
+    layer = result.layer_name
+    entries: list[JsonValue] = [
+        {
+            "name": "features",
+            "label": "Features scored",
+            "value": scores.nr_feature,
+            "unit": "features",
+            "status": "ok" if scores.nr_feature else "attention",
+            "layer": layer,
+        }
+    ]
+    for name, label, value in (
+        ("median_abs_epsilon_global", "Median absolute epsilon", scores.median_abs_epsilon_global),
+        ("mean_abs_epsilon_global", "Mean absolute epsilon", scores.mean_abs_epsilon_global),
+    ):
+        defined = math.isfinite(value)
+        entries.append(
+            {
+                "name": name,
+                "label": label,
+                "value": value if defined else None,
+                "unit": "log2 ratio",
+                "status": "ok" if defined else "attention",
+                "layer": layer,
+            }
+        )
+    return entries
 
 
 def _single_feature_key(level: ParsedLevel) -> str:
@@ -304,7 +346,7 @@ def _require_available_storage(level: ParsedLevel) -> None:
     tool = level.metadata.get(_STORAGE_KEY, {})
     if not isinstance(tool, dict):
         raise ValueError("ProteoBench metadata must be an object")
-    if "scoring" in tool:
+    if "scoring" in _object_field(dict(tool), "result"):
         raise ValueError("ProteoBench scoring already exists; refusing to overwrite scores")
 
 
@@ -313,6 +355,20 @@ def _tool_section(metadata: dict[str, JsonValue]) -> dict[str, JsonValue]:
     if not isinstance(tool, dict):
         raise ValueError("ProteoBench metadata must be an object")
     return tool
+
+
+def _object_field(record: dict[str, JsonValue], name: str) -> dict[str, JsonValue]:
+    value = record.setdefault(name, {})
+    if not isinstance(value, dict):
+        raise ValueError(f"ProteoBench record field {name!r} must be an object")
+    return value
+
+
+def _list_field(record: dict[str, JsonValue], name: str) -> list[JsonValue]:
+    value = record.setdefault(name, [])
+    if not isinstance(value, list):
+        raise ValueError(f"ProteoBench record field {name!r} must be a list")
+    return value
 
 
 def _metadata_layer_key(layer_name: str, /) -> str:

@@ -13,17 +13,19 @@ The level selected by `general.level` gains three observation columns:
 | `sample_name` | displayed ProteoBench sample name |
 | `condition` | experimental condition used by scoring |
 
-The normalized module configuration and a single source descriptor, including the authored TOML's SHA-256, live at root `apb.proteobench.provenance.annotation`. The selected level's `apb.proteobench.annotation` retains sample-matching counts, corrections and added-column names. In H5MU the root is MuData; for standalone H5AD both contributions occupy the single AnnData's `uns["apb"]` without ownership wrappers.
+The normalized module configuration and a single source descriptor, including the authored TOML's SHA-256, live at root `apb.proteobench.provenance.annotation`, beside the record's `schema_version` 4. Sample matching runs through APB2's prolfquapp convention, so each level's `apb.prolfquapp` record retains matching counts, corrections, added-column names and their summary. In H5MU the root is MuData; a standalone H5AD keeps the same root part in `uns["apb"]` and the level part in `uns[<level>]["apb"]`.
 
 ## After scoring
 
-Scoring persists schema version 3, with common provenance on the root and layer-specific results on the configured level:
+Scoring writes the `proteobench` record, schema version 4, with common provenance on the root and layer-specific results on the configured level:
 
 | Location | Contents |
 | --- | --- |
 | `varm["proteobench:<layer-name>"]` | feature-aligned mixed-species diagnostics for one selected layer |
 | Root `uns["apb"]["proteobench"]["provenance"]["scoring"]` | versions, method identities, selection mode |
-| Level `uns["apb"]["proteobench"]["scoring"]["Intensity"]` | retained quantity name, roles, diagnostics reference and scores |
+| Level `["proteobench"]["result"]["scoring"]["Intensity"]` | retained quantity name, roles and scores |
+| Level `["proteobench"]["summary"]` | per layer: features scored, median and mean absolute epsilon; per q-value kind after entrapment: identified precursors, combined and paired FDP |
+| Level `["proteobench"]["details"]` | the `varm` slots holding each layer's diagnostics |
 
 The feature diagnostics have exactly one row per variable in the selected level. Scores include the
 complete cutoff-indexed result plus the configured default-cutoff projection.
@@ -50,7 +52,7 @@ level = parsed.levels["ion"]
 
 diagnostics = level.varm["proteobench:Intensity"]
 score_record = level.metadata["proteobench"]
-intensity_record = score_record["scoring"]["Intensity"]
+intensity_record = score_record["result"]["scoring"]["Intensity"]
 
 print(diagnostics.head())
 print(parsed.metadata["proteobench"]["provenance"]["scoring"])

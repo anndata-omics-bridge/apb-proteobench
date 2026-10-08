@@ -67,7 +67,8 @@ def test_annotation_requires_exact_coverage_and_embeds_complete_configuration(
     assert level.obs.frame.get_column("sample_name").to_list() == ["A1", "A2", "B1", "B2"]
     record = _object(result.metadata["proteobench"])
     details = _object(_object(record["provenance"])["annotation"])
-    assert set(record) == {"provenance"}
+    assert set(record) == {"schema_version", "provenance"}
+    assert record["schema_version"] == "4"
     assert "metadata" not in details and "convention" not in details
     source = _object(details["source"])
     configuration = _object(details["configuration"])
@@ -163,14 +164,27 @@ def test_annotation_scoring_and_roundtrip_through_every_apb_format(
     stored = restored.levels["ion"].metadata["proteobench"]
     assert isinstance(stored, dict)
     provenance = _object(_object(restored.metadata["proteobench"])["provenance"])
-    assert _object(provenance["scoring"])["schema_version"] == "3"
+    assert _object(restored.metadata["proteobench"])["schema_version"] == "4"
+    assert "schema_version" not in _object(provenance["scoring"])
     assert set(provenance) == {"annotation", "scoring"}
     assert (
-        _object(restored.levels["ion"].metadata["prolfquapp"])["annotation"]
-        == _object(baseline.levels["ion"].metadata["prolfquapp"])["annotation"]
+        _object(restored.levels["ion"].metadata["prolfquapp"])["result"]
+        == _object(baseline.levels["ion"].metadata["prolfquapp"])["result"]
     )
-    assert set(stored) == {"scoring"}
-    layer = _object(_object(stored["scoring"])["Intensity"])
+    assert set(stored) == {"result", "summary", "details"}
+    assert stored["details"] == [{"slot": "varm", "name": "proteobench:Intensity"}]
+    summary = stored["summary"]
+    assert isinstance(summary, list)
+    assert [
+        (entry["name"], entry["layer"], entry["status"])
+        for entry in summary
+        if isinstance(entry, dict)
+    ] == [
+        ("features", "Intensity", "ok"),
+        ("median_abs_epsilon_global", "Intensity", "ok"),
+        ("mean_abs_epsilon_global", "Intensity", "ok"),
+    ]
+    layer = _object(_object(_object(stored["result"])["scoring"])["Intensity"])
     assert _object(layer["scores"])["nr_feature"] == 3
     assert _object(layer["column_roles"])["Proteins"] == "var:Protein_Ids"
     assert (
@@ -251,7 +265,7 @@ def test_default_selection_scores_every_abundance_layer(tmp_path: Path) -> None:
     )
     assert provenance["layers"] == ["Intensity", "LFQ/Intensity"]
     assert "resolved_layers" not in provenance
-    assert list(_object(record["scoring"])) == ["Intensity", "LFQ%2FIntensity"]
+    assert list(_object(_object(record["result"])["scoring"])) == ["Intensity", "LFQ%2FIntensity"]
 
 
 def test_primary_selection_scores_only_x_layer(tmp_path: Path) -> None:
@@ -268,7 +282,7 @@ def test_primary_selection_scores_only_x_layer(tmp_path: Path) -> None:
         _object(_object(restored.metadata["proteobench"])["provenance"])["scoring"]
     )
     assert provenance["layers"] == ["Intensity"]
-    assert list(_object(record["scoring"])) == ["Intensity"]
+    assert list(_object(_object(record["result"])["scoring"])) == ["Intensity"]
 
 
 def test_named_selection_scores_one_abundance_layer(tmp_path: Path) -> None:
@@ -289,7 +303,7 @@ def test_named_selection_scores_one_abundance_layer(tmp_path: Path) -> None:
         _object(_object(restored.metadata["proteobench"])["provenance"])["scoring"]
     )
     assert provenance["layers"] == ["LFQ/Intensity"]
-    assert list(_object(record["scoring"])) == ["LFQ%2FIntensity"]
+    assert list(_object(_object(record["result"])["scoring"])) == ["LFQ%2FIntensity"]
 
 
 @pytest.mark.parametrize("suffix", [".h5ad", ".h5mu", ".parquet", ".duckdb"])
@@ -314,7 +328,7 @@ def test_all_abundance_layers_round_trip_in_declared_order(
         "proteobench:LFQ/Intensity",
     ]
     record = _object(restored.levels["ion"].metadata["proteobench"])
-    layer_records = _object(record["scoring"])
+    layer_records = _object(_object(record["result"])["scoring"])
     assert list(layer_records) == ["Intensity", "LFQ%2FIntensity"]
     assert [_object(value)["layer_name"] for value in layer_records.values()] == [
         "Intensity",

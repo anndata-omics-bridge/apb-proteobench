@@ -63,7 +63,7 @@ The FASTA argument may instead be the Parquet file `protein-fasta database entra
 
 `--scores PATH` writes one ProteoBench entrapment datapoint per q-value kind, keyed by kind: the search-parameter fields plus `lower_bound_FDP`, `combined_FDP`, `paired_FDP`, their categories and the FDP curve, in the layout of the upstream entrapment datapoints.
 
-`--module` defaults to the packaged `entrapment_dia_astral`. Scores per kind sit in the level's `metadata["proteobench"]["entrapment"]`, each precursor's label, pair and best q-values in `varm["proteobench:entrapment"]`, and the catalogue lookups in `metadata["catalog"]["proteobench_entrapment"]`. Precursors with equal q-values share a rank, so a tie never counts as an entrapment out-scoring its target ([ProteoBench#1159](https://github.com/Proteobench/ProteoBench/issues/1159)). `--timings-dir` writes the same three timing files as `run quant`, without `export`.
+`--module` defaults to the packaged `entrapment_dia_astral`. Scores per kind sit in the level's `metadata["proteobench"]["result"]["entrapment"]`, with identified precursors and combined and paired FDP per kind in its `summary`; each precursor's label, pair and best q-values sit in `varm["proteobench:entrapment"]`, and the catalogue snapshot in the root `metadata["catalog"]["proteobench_entrapment"]["result"]`. Precursors with equal q-values share a rank, so a tie never counts as an entrapment out-scoring its target ([ProteoBench#1159](https://github.com/Proteobench/ProteoBench/issues/1159)). `--timings-dir` writes the same three timing files as `run quant`, without `export`.
 
 ## `apb-proteobench benchmark`
 

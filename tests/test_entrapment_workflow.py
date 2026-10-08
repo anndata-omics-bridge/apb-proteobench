@@ -121,9 +121,19 @@ def test_every_catalogued_q_value_kind_is_scored(tmp_path: Path) -> None:
     assert sorted(labels.get_column("label").to_list()) == ["entrapment"] * 3 + ["target"] * 3
     stored = ion.metadata["proteobench"]
     assert isinstance(stored, dict)
-    entrapment = stored["entrapment"]
+    record = stored["result"]
+    assert isinstance(record, dict)
+    entrapment = record["entrapment"]
     assert isinstance(entrapment, dict)
     assert sorted(entrapment) == ["global_q_value", "library_q_value", "q_value"]
+    assert stored["details"] == [{"slot": "varm", "name": DIAGNOSTICS_SLOT}]
+    summary = stored["summary"]
+    assert isinstance(summary, list)
+    assert {(entry["name"], entry["layer"]) for entry in summary if isinstance(entry, dict)} == {
+        (name, kind)
+        for name in ("identified_features", "combined_fdp", "paired_fdp")
+        for kind in ("global_q_value", "library_q_value", "q_value")
+    }
     catalog = result.parsed.metadata["catalog"]
     assert isinstance(catalog, dict)
     assert CATALOGUE in catalog
@@ -178,7 +188,9 @@ def test_cli_run_entrapment_writes_a_scored_result(tmp_path: Path) -> None:
     assert {"software_name", "precursor_mass_tolerance", "fdp_curve"} <= set(datapoints["q_value"])
     stored = read_parsed_levels(target).levels["ion"].metadata["proteobench"]
     assert isinstance(stored, dict)
-    entrapment = stored["entrapment"]
+    record = stored["result"]
+    assert isinstance(record, dict)
+    entrapment = record["entrapment"]
     assert isinstance(entrapment, dict)
     library = entrapment["library_q_value"]
     assert isinstance(library, dict)

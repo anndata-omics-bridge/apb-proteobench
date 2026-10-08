@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import json
+import math
 from copy import deepcopy
 from dataclasses import dataclass, replace
+from typing import cast
 
 import polars as pl
 from apb2.api import JsonValue, ParsedLevels
 from apb_catalog.api import Catalog, attach_snapshot
 from apb_fasta.api import FastaAnnotator
 
+from apb_proteobench.annotation import PROTEOBENCH_SCHEMA_VERSION
 from apb_proteobench.calculation.entrapment import (
     ENTRAPMENT_SOURCE_REVISION,
     TIE_RULE,
@@ -126,7 +130,8 @@ def _persist(
     level = parsed.levels[settings.level]
     level_metadata = deepcopy(level.metadata)
     tool = _section(level_metadata, _STORAGE_KEY)
-    if DIAGNOSTICS_SLOT in level.varm or "entrapment" in tool:
+    tool_result = _section(tool, "result")
+    if DIAGNOSTICS_SLOT in level.varm or "entrapment" in tool_result:
         raise ValueError("ProteoBench entrapment results already exist; refusing to overwrite")
     keys = list(level.var.key_columns)
     kinds = list(scores)
@@ -140,21 +145,68 @@ def _persist(
         )
         .drop(keys)
     )
-    tool["entrapment"] = {kind: score.model_dump(mode="json") for kind, score in scores.items()}
+    # Through JSON text, so an undefined FDP is stored as null rather than NaN.
+    tool_result["entrapment"] = {
+        kind: cast(JsonValue, json.loads(score.model_dump_json())) for kind, score in scores.items()
+    }
+    _list(tool, "summary").extend(
+        entry for kind, score in scores.items() for entry in _summary(kind, score)
+    )
+    _list(tool, "details").append({"slot": "varm", "name": DIAGNOSTICS_SLOT})
     root_metadata = deepcopy(parsed.metadata)
-    provenance = _section(_section(root_metadata, _STORAGE_KEY), "provenance")
+    root_tool = _section(root_metadata, _STORAGE_KEY)
+    root_tool["schema_version"] = PROTEOBENCH_SCHEMA_VERSION
+    provenance = _section(root_tool, "provenance")
     provenance["entrapment"] = {
         "module": settings.model_dump(mode="json"),
         "source_revision": ENTRAPMENT_SOURCE_REVISION,
         "ties": TIE_RULE,
         "kinds": list(kinds),
-        "diagnostics": f"varm:{DIAGNOSTICS_SLOT}",
     }
     levels = dict(parsed.levels)
     levels[settings.level] = replace(
         level, varm={**level.varm, DIAGNOSTICS_SLOT: diagnostics}, metadata=level_metadata
     )
     return replace(parsed, levels=levels, metadata=root_metadata)
+
+
+def _summary(kind: str, score: EntrapmentScores) -> list[JsonValue]:
+    """One q-value kind's identified features and FDP estimates, keyed by the kind.
+
+    An FDP needs attention unless its entrapment category is ``valid``.
+    """
+    entries: list[JsonValue] = [
+        {
+            "name": "identified_features",
+            "label": "Identified precursors",
+            "value": score.nr_id_features,
+            "unit": "features",
+            "status": "ok",
+            "layer": kind,
+        }
+    ]
+    for name, label, value, category in (
+        ("combined_fdp", "Combined FDP", score.combined_FDP, score.category_combined),
+        ("paired_fdp", "Paired FDP", score.paired_FDP, score.category_paired),
+    ):
+        entries.append(
+            {
+                "name": name,
+                "label": label,
+                "value": value if math.isfinite(value) else None,
+                "unit": "fraction",
+                "status": "ok" if category == "valid" else "attention",
+                "layer": kind,
+            }
+        )
+    return entries
+
+
+def _list(document: dict[str, JsonValue], key: str) -> list[JsonValue]:
+    value = document.setdefault(key, [])
+    if not isinstance(value, list):
+        raise ValueError(f"metadata {key!r} must be a list")
+    return value
 
 
 def _section(document: dict[str, JsonValue], key: str) -> dict[str, JsonValue]:

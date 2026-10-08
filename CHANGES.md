@@ -2,6 +2,7 @@
 
 ## 2026-10-08
 
+- **Breaking:** the `proteobench` record has `schema_version` 4 at the root. Level scores move to `result.scoring` and `result.entrapment`, with a `summary` per layer and q-value kind and `details` naming the `varm` slots; nested schema versions and `diagnostics` strings are gone, and entrapment scores store NaN as null.
 - **Breaking:** `--il-equivalent` is gone: apb-fasta now always accepts a peptide's other I/L spelling when its exact spelling misses, and exactly matched peptides keep exactly their proteins.
 - Scoring drops the decoys apb2 marks `apb_Decoy` (the `decoys` mask was all false), and counts as contaminants the features apb2 marks `apb_Contaminant` besides apb-fasta's FASTA contaminants, so contaminants that MaxQuant and others add themselves, absent from the FASTA, are excluded too. A result without the two apb2 columns is refused.
 

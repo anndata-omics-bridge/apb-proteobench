@@ -23,7 +23,7 @@ def report_score(
         for layer in result.layers.values():
             logger.info(
                 "scored level={} layer={} diagnostics=varm[{}] "
-                "scores=uns['apb']['proteobench']['scoring'][{}] output={}",
+                "scores=apb.proteobench.result.scoring[{}] output={}",
                 layer.level_name,
                 layer.layer_name,
                 repr(layer.diagnostics_slot),
@@ -65,7 +65,7 @@ def report_score(
             scores.results[str(configuration.general.default_cutoff_min_feature)].root["roc_auc"],
         )
         logger.info(
-            "stored diagnostics=varm[{}] scores=uns['apb']['proteobench']['scoring'][{}]",
+            "stored diagnostics=varm[{}] scores=apb.proteobench.result.scoring[{}]",
             repr(layer.diagnostics_slot),
             repr(layer.layer_name),
         )

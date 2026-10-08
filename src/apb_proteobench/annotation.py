@@ -7,11 +7,13 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 import polars as pl
-from apb2.api import AnnotationCompiler, AnnotationError, JsonValue, ParsedLevels
+from apb2.api import AnnotationCompiler, AnnotationError, ParsedLevels
 
 from apb_proteobench.configuration.load import LoadedModule, load_module
 
 _STORAGE_KEY = "proteobench"
+PROTEOBENCH_SCHEMA_VERSION = "4"
+"""The version of the ``proteobench`` record every ProteoBench step writes."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,8 +32,8 @@ class ProteoBenchAnnotation:
         provenance = section.setdefault("provenance", {})
         if not isinstance(provenance, dict):
             raise AnnotationError("ProteoBench provenance must be an object")
-        record: dict[str, JsonValue] = {**self.module.metadata(), "schema_version": "2"}
-        provenance["annotation"] = record
+        provenance["annotation"] = dict(self.module.metadata())
+        section["schema_version"] = PROTEOBENCH_SCHEMA_VERSION
         return replace(self.annotated, metadata=metadata)
 
 
