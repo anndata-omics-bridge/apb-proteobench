@@ -75,10 +75,6 @@ class RunCliOptions:
         Literal["auto", "ahocorapy", "ahocorasick_rs"],
         Parameter(help="FASTA peptide-matching backend"),
     ] = "auto"
-    il_equivalent: Annotated[
-        bool,
-        Parameter(negative=False, help="Treat isoleucine and leucine as equivalent"),
-    ] = False
     protein_group_separator: Annotated[
         str,
         Parameter(help="Separator between protein accessions"),
@@ -136,10 +132,6 @@ class EntrapmentCliOptions:
         Literal["auto", "ahocorapy", "ahocorasick_rs"],
         Parameter(help="FASTA peptide-matching backend"),
     ] = "auto"
-    il_equivalent: Annotated[
-        bool,
-        Parameter(negative=False, help="Treat isoleucine and leucine as equivalent"),
-    ] = False
     protein_group_separator: Annotated[
         str,
         Parameter(help="Separator between protein accessions"),
@@ -189,7 +181,6 @@ def _convert_and_verify(
     software: str | None,
     strict: bool,
     backend: Literal["auto", "ahocorapy", "ahocorasick_rs"],
-    il_equivalent: bool,
     protein_group_separator: str,
 ) -> _VerifiedConversion:
     """Convert vendor files with APB2 and verify their peptides against the FASTA files."""
@@ -215,7 +206,6 @@ def _convert_and_verify(
         parameters=FastaAnnotationParameters(
             protein_group_separator=protein_group_separator,
             matcher_backend=backend,
-            il_equivalent=il_equivalent,
         ),
     )
     fasta_load_seconds = perf_counter() - started
@@ -335,7 +325,6 @@ def run_quant(
             software=options.software,
             strict=options.strict,
             backend=options.backend,
-            il_equivalent=options.il_equivalent,
             protein_group_separator=options.protein_group_separator,
         )
         seconds = dict(conversion.seconds)
@@ -416,7 +405,6 @@ def run_entrapment(
             software=options.software,
             strict=options.strict,
             backend=options.backend,
-            il_equivalent=options.il_equivalent,
             protein_group_separator=options.protein_group_separator,
         )
         seconds = dict(conversion.seconds)

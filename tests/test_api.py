@@ -636,7 +636,6 @@ def test_cli_exposes_only_complete_workflows() -> None:
                 "Parameter-file software; restrict result",
                 "recognition to plausible vendors",
                 "FASTA peptide-matching backend",
-                "Treat isoleucine and leucine as equivalent",
                 "Separator between protein accessions",
                 "One quantification level to convert",
                 "Abundance layer to score",

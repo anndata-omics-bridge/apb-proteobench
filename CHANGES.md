@@ -2,6 +2,7 @@
 
 ## 2026-10-08
 
+- **Breaking:** `--il-equivalent` is gone: apb-fasta now always accepts a peptide's other I/L spelling when its exact spelling misses, and exactly matched peptides keep exactly their proteins.
 - Scoring drops the decoys apb2 marks `apb_Decoy` (the `decoys` mask was all false), and counts as contaminants the features apb2 marks `apb_Contaminant` besides apb-fasta's FASTA contaminants, so contaminants that MaxQuant and others add themselves, absent from the FASTA, are excluded too. A result without the two apb2 columns is refused.
 
 ## 2026-10-05
