@@ -44,7 +44,7 @@ def module_settings(*, hy: bool = False) -> ModuleSettings:
     return ModuleSettings(
         species_expected_ratio=ratios,
         species_mapper=mapper,
-        general=ModuleGeneral(min_count_multispec=1, level="ion", contaminant_flag="Cont_"),
+        general=ModuleGeneral(min_count_multispec=1, level="ion"),
         samples=[
             SampleSettings(raw_file="run_A1", sample_name="A1", condition="A"),
             SampleSettings(raw_file="run_A2", sample_name="A2", condition="A"),
@@ -111,6 +111,8 @@ def parsed_result() -> ParsedLevels:
                 {
                     "fasta_matching_organisms": inputs.matched_organisms.tolist(),
                     "fasta_matches_contaminant": inputs.contaminants,
+                    "reported_member_organisms": inputs.matched_organisms.tolist(),
+                    "reported_members_contaminant": inputs.contaminants,
                 }
             )
         },
@@ -138,9 +140,7 @@ def write_module(path: Path, /, *, alias: bool = False, hy: bool = False) -> Non
                 f'suffix = "{flag}"',
             ]
         )
-    lines.extend(
-        ["[general]", 'level = "ion"', "min_count_multispec = 1", 'contaminant_flag = "Cont_"']
-    )
+    lines.extend(["[general]", 'level = "ion"', "min_count_multispec = 1"])
     if alias:
         lines.append("[run_aliases]")
         lines.extend(

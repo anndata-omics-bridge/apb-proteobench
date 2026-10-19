@@ -218,20 +218,18 @@ def test_analyzer_annotates_and_scores_without_physical_io(tmp_path: Path) -> No
     assert not target.exists()
 
 
-@pytest.mark.parametrize("contaminants", ["apb-fasta", "vendor"])
-def test_analyzer_records_its_contaminant_source(
-    tmp_path: Path, contaminants: Literal["apb-fasta", "vendor"]
+@pytest.mark.parametrize("proteins", ["matched", "vendor"])
+def test_analyzer_records_its_protein_source(
+    tmp_path: Path, proteins: Literal["matched", "vendor"]
 ) -> None:
     module = tmp_path / "module.toml"
     write_module(module)
 
-    result = ProteoBenchAnalyzer(load_module(module), contaminants=contaminants).analyze(
-        parsed_result()
-    )
+    result = ProteoBenchAnalyzer(load_module(module), proteins=proteins).analyze(parsed_result())
 
     provenance = _object(_object(result.parsed.metadata["proteobench"])["provenance"])
-    assert _object(provenance["scoring"])["contaminants"] == contaminants
-    assert result.submission("Intensity").settings["contaminants"] == contaminants
+    assert _object(provenance["scoring"])["proteins"] == proteins
+    assert result.submission("Intensity").settings["proteins"] == proteins
     assert result.layers["Intensity"].analysis.scores.nr_feature == 3
 
 
@@ -580,7 +578,7 @@ def test_cli_scores_one_layer_and_defaults_to_x(
     assert f"scored level=ion layer={expected[0].removeprefix('proteobench:')}" in "".join(messages)
 
 
-def test_cli_benchmark_takes_vendor_contaminants(tmp_path: Path) -> None:
+def test_cli_benchmark_takes_vendor_proteins(tmp_path: Path) -> None:
     source = tmp_path / "source.parquet"
     module = tmp_path / "module.toml"
     target = tmp_path / "scored.parquet"
@@ -588,14 +586,14 @@ def test_cli_benchmark_takes_vendor_contaminants(tmp_path: Path) -> None:
     write_parsed_levels(parsed_result(), source)
 
     status = app(
-        ["benchmark", str(source), str(module), str(target), "--contaminants", "vendor"],
+        ["benchmark", str(source), str(module), str(target), "--proteins", "vendor"],
         exit_on_error=False,
         result_action="return_value",
     )
 
     assert status == 0
     provenance = _object(_object(read_parsed_levels(target).metadata["proteobench"])["provenance"])
-    assert _object(provenance["scoring"])["contaminants"] == "vendor"
+    assert _object(provenance["scoring"])["proteins"] == "vendor"
 
 
 def test_cli_rejects_result_performance_for_non_ion_level(tmp_path: Path) -> None:
@@ -681,16 +679,13 @@ def test_cli_exposes_only_complete_workflows() -> None:
                 "One or more protein FASTA files",
                 "Vendor search-parameter file",
                 "Packaged ProteoBench module",
-                "New scored APB2 .h5ad, .h5mu, .parquet, or",
-                ".duckdb result",
+                "New scored APB2 .h5ad, .h5mu, .parquet,",
                 "Parameter-file software; restrict result",
-                "recognition to plausible vendors",
                 "FASTA peptide-matching backend",
-                "Separator between protein accessions",
                 "One quantification level to convert",
                 "Abundance layer to score",
+                "Proteins deciding species and contaminants",
                 "Write result_performance.csv and sibling",
-                "ProteoBot JSON",
                 "Promote APB2 layer-contract warnings to errors",
                 "Report detailed conversion and scoring",
             ),

@@ -22,7 +22,7 @@ Scoring writes the `proteobench` record, schema version 4, with common provenanc
 | Location | Contents |
 | --- | --- |
 | `varm["proteobench:<layer-name>"]` | feature-aligned mixed-species diagnostics for one selected layer |
-| Root `uns["apb"]["proteobench"]["provenance"]["scoring"]` | versions, method identities, contaminant source (`apb-fasta` or `vendor`), selection mode |
+| Root `uns["apb"]["proteobench"]["provenance"]["scoring"]` | versions, method identities, deciding proteins (`matched` or `vendor`), selection mode |
 | Level `["proteobench"]["result"]["scoring"]["Intensity"]` | retained quantity name, roles and scores |
 | Level `["proteobench"]["summary"]` | per layer: features scored, median and mean absolute epsilon; per q-value kind after entrapment: identified precursors, combined and paired FDP |
 | Level `["proteobench"]["details"]` | the `varm` slots holding each layer's diagnostics |

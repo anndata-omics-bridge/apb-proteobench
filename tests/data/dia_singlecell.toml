@@ -12,7 +12,6 @@ color = "#ddcc77"
 
 [general]
 min_count_multispec = 1
-contaminant_flag = "Cont_"
 level = "ion"
 
 [run_aliases]

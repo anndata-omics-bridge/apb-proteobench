@@ -13,7 +13,7 @@ from apb_proteobench.configuration.load import LoadedModule, load_module, load_p
 from apb_proteobench.configuration.schema import ModuleSettings
 from apb_proteobench.entrapment import EntrapmentAnalysisResult, EntrapmentAnalyzer
 from apb_proteobench.integration import (
-    ContaminantSource,
+    ProteinSource,
     ScoredLayerResult,
     SubmissionContent,
     diagnostics_slot,
@@ -53,9 +53,9 @@ class ProteoBenchAnalyzer:
     __slots__ = (
         "_annotation_parser",
         "_configuration",
-        "_contaminants",
         "_diagnostic_method",
         "_layers",
+        "_proteins",
         "_scoring_method",
     )
 
@@ -63,22 +63,21 @@ class ProteoBenchAnalyzer:
         self,
         module: LoadedModule,
         layers: Sequence[str] | None = None,
-        contaminants: ContaminantSource = "apb-fasta",
+        proteins: ProteinSource = "matched",
         diagnostic_method: DiagnosticMethod = _DEFAULT_DIAGNOSTICS,
         scoring_method: ScoringMethod = _DEFAULT_SCORING,
     ) -> None:
         """Create a complete analyzer for one validated ProteoBench module.
 
         ``layers`` names the abundance layers to score; ``None`` scores every one.
-        ``contaminants`` picks the contaminant source: ``"apb-fasta"`` marks features whose
-        peptide a FASTA contaminant contains, ``"vendor"`` features whose protein IDs
-        (apb2's ``fasta_accessions`` column) contain the module's ``contaminant_flag``.
-        Both add the contaminants apb2 marked ``apb_Contaminant``.
+        ``proteins`` picks which proteins decide species and contaminants: ``"matched"``, the
+        FASTA proteins containing the peptide, or ``"vendor"``, the proteins the vendor reports,
+        as ProteoBench decides. Both add the contaminants apb2 marked ``apb_Contaminant``.
         """
         self._annotation_parser = ProteoBenchAnnotationParser(module)
         self._configuration = module.settings
         self._layers = layers
-        self._contaminants: ContaminantSource = contaminants
+        self._proteins: ProteinSource = proteins
         self._diagnostic_method = diagnostic_method
         self._scoring_method = scoring_method
 
@@ -87,7 +86,7 @@ class ProteoBenchAnalyzer:
         annotated = self._annotation_parser.parse(parsed).annotate()
         layers: dict[str, ScoredLayerResult] = {}
         for layer_name in select_layers(annotated, self._configuration, self._layers):
-            selected = extract_layer(annotated, self._configuration, layer_name, self._contaminants)
+            selected = extract_layer(annotated, self._configuration, layer_name, self._proteins)
             analysis = analyze_level(
                 selected.calculation,
                 self._configuration,
@@ -99,7 +98,7 @@ class ProteoBenchAnalyzer:
                 layer_name=selected.layer_name,
                 diagnostics_slot=diagnostics_slot(selected.layer_name),
                 roles=selected.roles,
-                contaminants=self._contaminants,
+                proteins=self._proteins,
                 analysis=analysis,
             )
         return ProteoBenchAnalysisResult(

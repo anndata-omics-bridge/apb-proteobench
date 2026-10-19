@@ -51,12 +51,12 @@ named = ProteoBenchAnalyzer(module, layers=("LFQ_Intensity",)).analyze(parsed)
 
 APB2's `ParsedLevel.abundance_layers()` resolves `layers`: `None` keeps declared order and requires at least one layer with the abundance role; a named layer must exist and carry that role. Scoring provenance records the scored layer names under `layers`.
 
-## Choose the contaminant source
+## Choose the proteins that decide
 
-`contaminants="apb-fasta"`, the default, takes contaminants from apb-fasta's FASTA matches. `contaminants="vendor"` takes them from the vendor's protein IDs, as ProteoBench does: apb2's `fasta_accessions` column containing the module's `contaminant_flag`. Both add apb2's `apb_Contaminant`, and scoring provenance records the choice under `contaminants`:
+`proteins="matched"`, the default, decides species and contaminants from the FASTA proteins containing the peptide; `proteins="vendor"` from the proteins the vendor reports, as ProteoBench does. apb-fasta resolves both. Scoring provenance records the choice under `proteins`:
 
 ```python
-result = ProteoBenchAnalyzer(module, contaminants="vendor").analyze(parsed)
+result = ProteoBenchAnalyzer(module, proteins="vendor").analyze(parsed)
 ```
 
 ## Substitute calculation methods

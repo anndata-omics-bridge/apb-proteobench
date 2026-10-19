@@ -55,27 +55,28 @@ def test_scoring_refuses_a_result_without_vendor_markings() -> None:
     level.var.frame = level.var.frame.drop("apb_Decoy")
 
     with pytest.raises(ValueError, match=r"vendor markings; missing \['apb_Decoy'\]"):
-        extract_layer(parsed, module_settings(), "Intensity", "apb-fasta")
+        extract_layer(parsed, module_settings(), "Intensity", "matched")
 
 
-def test_vendor_contaminants_read_the_fasta_accessions_column() -> None:
-    # AlphaDIA-style: the assignment column lacks Cont_ where the accessions column has it.
+def test_vendor_proteins_decide_species_and_contaminants_from_the_reported_members() -> None:
+    # The peptide of feature 5 occurs in a human and a yeast protein; the vendor reports one.
     parsed = parsed_result()
     level = parsed.levels["ion"]
-    level.var.frame = level.var.frame.with_columns(
-        pl.Series("proteins", ["P1", "P2", "Cont_P3;P3", "P4", None, "P6"]),
-        pl.Series("apb_Contaminant", [True, False, False, False, False, False]),
+    level.varm["fasta_validation"] = level.varm["fasta_validation"].with_columns(
+        pl.Series("reported_member_organisms", ["HUMAN", "YEAST", "ECOLI", "", "HUMAN", ""]),
+        pl.Series("reported_members_contaminant", [False, False, True, False, False, False]),
     )
-    level.var.roles = {**level.var.roles, "fasta_accessions": "proteins"}
 
-    fasta = extract_layer(parsed, module_settings(), "Intensity", "apb-fasta")
-    vendor = extract_layer(parsed, module_settings(), "Intensity", "vendor")
+    matched = extract_layer(parsed, module_settings(), "Intensity", "matched").calculation
+    vendor = extract_layer(parsed, module_settings(), "Intensity", "vendor").calculation
 
-    assert fasta.calculation.contaminants.tolist() == [True, False, False, True, False, False]
-    assert vendor.calculation.contaminants.tolist() == [True, False, True, False, False, False]
+    assert matched.matched_organisms.tolist()[4] == "HUMAN;YEAST"
+    assert vendor.matched_organisms.tolist()[4] == "HUMAN"
+    assert matched.contaminants.tolist() == [False, False, False, True, False, False]
+    assert vendor.contaminants.tolist() == [False, False, True, False, False, False]
 
 
-def test_vendor_contaminants_require_the_fasta_accessions_role() -> None:
+def test_vendor_proteins_require_the_fasta_accessions_role() -> None:
     parsed = parsed_result()
     level = parsed.levels["ion"]
     level.var.roles = {"protein_assignment": "Protein_Ids"}

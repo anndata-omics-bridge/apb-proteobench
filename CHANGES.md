@@ -1,5 +1,10 @@
 # Changes
 
+## 2026-10-20
+
+- **Breaking:** `--contaminants apb-fasta|vendor` becomes `--proteins matched|vendor`, and `ProteoBenchAnalyzer` `contaminants` becomes `proteins`. `vendor` now decides species as well as contaminants from the proteins the vendor reports, which apb-fasta resolves in the FASTA (`reported_member_organisms`, `reported_members_contaminant`), as ProteoBench decides them without its `mapper.csv`. Provenance and submission settings record `proteins`.
+- **Breaking:** module TOMLs no longer take `[general] contaminant_flag`, and `--protein-group-separator` is gone: apb2 writes every protein list `;`-separated.
+
 ## 2026-10-19
 
 - `run quant` and `benchmark` accept `--contaminants apb-fasta|vendor`, and `ProteoBenchAnalyzer` `contaminants`. `apb-fasta`, the default, keeps FASTA-matched contaminants; `vendor` marks features whose protein IDs (apb2's `fasta_accessions` column) contain the module's `contaminant_flag`, as ProteoBench does. Both add `apb_Contaminant`. Scoring provenance and the ProteoBot submission settings record the choice, so the submission hash changes.

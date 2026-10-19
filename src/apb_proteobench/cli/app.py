@@ -44,9 +44,9 @@ from apb_proteobench.cli.timings import write_tool_timings
 PRIMARY_LAYER_NAME = "X"
 """The ``--layer`` value that selects the APB primary layer stored in ``X``."""
 
-CONTAMINANTS_HELP = (
-    'Contaminant source: "apb-fasta" FASTA contaminants containing the peptide, or "vendor" '
-    "protein IDs containing the module's contaminant_flag, as ProteoBench"
+PROTEINS_HELP = (
+    'Proteins deciding species and contaminants: "matched", the FASTA proteins containing the '
+    'peptide, or "vendor", the proteins the vendor reports, as ProteoBench'
 )
 
 app = App(
@@ -80,10 +80,6 @@ class RunCliOptions:
         Literal["auto", "ahocorapy", "ahocorasick_rs"],
         Parameter(help="FASTA peptide-matching backend"),
     ] = "auto"
-    protein_group_separator: Annotated[
-        str,
-        Parameter(help="Separator between protein accessions"),
-    ] = ";"
     level: Annotated[
         QuantificationLevel | None,
         Parameter(help="One quantification level to convert"),
@@ -92,10 +88,10 @@ class RunCliOptions:
         str,
         Parameter(help='Abundance layer to score; "X" is the APB primary layer'),
     ] = PRIMARY_LAYER_NAME
-    contaminants: Annotated[
-        Literal["apb-fasta", "vendor"],
-        Parameter(help=CONTAMINANTS_HELP),
-    ] = "apb-fasta"
+    proteins: Annotated[
+        Literal["matched", "vendor"],
+        Parameter(help=PROTEINS_HELP),
+    ] = "matched"
     result_performance: Annotated[
         Path | None,
         Parameter(help="Write result_performance.csv and sibling ProteoBot JSON"),
@@ -141,10 +137,6 @@ class EntrapmentCliOptions:
         Literal["auto", "ahocorapy", "ahocorasick_rs"],
         Parameter(help="FASTA peptide-matching backend"),
     ] = "auto"
-    protein_group_separator: Annotated[
-        str,
-        Parameter(help="Separator between protein accessions"),
-    ] = ";"
     scores: Annotated[
         Path | None,
         Parameter(help="Write the ProteoBench entrapment datapoint JSON per q-value kind"),
@@ -190,7 +182,6 @@ def _convert_and_verify(
     software: str | None,
     strict: bool,
     backend: Literal["auto", "ahocorapy", "ahocorasick_rs"],
-    protein_group_separator: str,
 ) -> _VerifiedConversion:
     """Convert vendor files with APB2 and verify their peptides against the FASTA files."""
     if not fasta_paths:
@@ -212,10 +203,7 @@ def _convert_and_verify(
     started = perf_counter()
     fasta = FastaAnnotator.read(
         fasta_paths,
-        parameters=FastaAnnotationParameters(
-            protein_group_separator=protein_group_separator,
-            matcher_backend=backend,
-        ),
+        parameters=FastaAnnotationParameters(matcher_backend=backend),
     )
     fasta_load_seconds = perf_counter() - started
     started = perf_counter()
@@ -259,10 +247,10 @@ def benchmark(
         str,
         Parameter(help='Abundance layer to score; "X" is the APB primary layer'),
     ] = PRIMARY_LAYER_NAME,
-    contaminants: Annotated[
-        Literal["apb-fasta", "vendor"],
-        Parameter(help=CONTAMINANTS_HELP),
-    ] = "apb-fasta",
+    proteins: Annotated[
+        Literal["matched", "vendor"],
+        Parameter(help=PROTEINS_HELP),
+    ] = "matched",
     result_performance: Annotated[
         Path | None,
         Parameter(help="Write result_performance.csv and sibling ProteoBot JSON"),
@@ -282,7 +270,7 @@ def benchmark(
         parsed = read_parsed_levels(source)
         loaded = _load_module(module)
         result = ProteoBenchAnalyzer(
-            loaded, layers=_layer_names(layer, parsed, loaded), contaminants=contaminants
+            loaded, layers=_layer_names(layer, parsed, loaded), proteins=proteins
         ).analyze(parsed)
         target.parent.mkdir(parents=True, exist_ok=True)
         write_parsed_levels(result.parsed, target)
@@ -338,7 +326,6 @@ def run_quant(
             software=options.software,
             strict=options.strict,
             backend=options.backend,
-            protein_group_separator=options.protein_group_separator,
         )
         seconds = dict(conversion.seconds)
         started = perf_counter()
@@ -349,7 +336,7 @@ def run_quant(
         result = ProteoBenchAnalyzer(
             loaded_module,
             layers=_layer_names(options.layer, parsed, loaded_module),
-            contaminants=options.contaminants,
+            proteins=options.proteins,
         ).analyze(parsed)
         seconds["analyze"] = perf_counter() - started
         started = perf_counter()
@@ -420,7 +407,6 @@ def run_entrapment(
             software=options.software,
             strict=options.strict,
             backend=options.backend,
-            protein_group_separator=options.protein_group_separator,
         )
         seconds = dict(conversion.seconds)
         seconds["load_module"] = module_seconds
