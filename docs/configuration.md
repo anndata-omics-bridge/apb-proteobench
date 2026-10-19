@@ -19,6 +19,7 @@ suffix = "_HUMAN"
 [general]
 min_count_multispec = 1
 level = "ion"
+contaminant_flag = "Cont_"
 default_cutoff_min_feature = 1
 max_nr_observed = 6
 
@@ -40,6 +41,7 @@ The SDRF path is relative to the TOML's directory. APB2 reads it through `apb2.a
 - Each species' expected A/B ratio is the quotient of its condition A and condition B quantities. Every scored species needs one quantity per condition, in one unit, identical across that condition's rows.
 - `[species.<NAME>]` links an SDRF organism to the FASTA entry-name `suffix` that marks its proteins, and to an optional plot `color`. Every spiked organism needs an entry.
 - Species and contaminants come from apb-fasta's `varm["fasta_validation"]`, so scoring requires peptide verification. A feature belongs to a species when a FASTA protein containing its peptide has that organism (`suffix` without `_`, e.g. `HUMAN`). It is a contaminant when any such protein is, or when apb2 marked it `apb_Contaminant`; it is dropped as a decoy when apb2 marked it `apb_Decoy`.
+- `contaminant_flag` (required, `"Cont_"` in every packaged module, as in ProteoBench) is used with `--contaminants vendor`: a feature is then a contaminant when its protein IDs, apb2's `fasta_accessions` column, contain the flag, or when apb2 marked it `apb_Contaminant`. Species still come from apb-fasta.
 - `[run_aliases]` lists further run names that vendor tables report, keyed by SDRF data file. An observation may match a run's identifier, an alias, or its sample name; successful matching always records the module's canonical metadata.
 - `min_count_multispec` controls exclusion of features assigned to multiple species.
 - `level` selects the single APB2 quantification level to annotate and score.
@@ -85,7 +87,7 @@ upstream catalogue:
 | Name | Module | Current status |
 | --- | --- | --- |
 | `denovo_dda_hcd` | de novo DDA HCD | different schema; not implemented |
-| `entrapment_dia_astral` | DIA Astral entrapment | scored by `run entrapment`; TOML plus SDRF of the three HeLa runs |
+| `entrapment_dia_astral` | DIA Astral entrapment | scored by `run entrapment`; TOML plus SDRF of the three K562 runs |
 
 `load_packaged_module()` refuses both. `load_packaged_entrapment_module("entrapment_dia_astral")` loads the entrapment module for `EntrapmentAnalyzer`; see the [Python API](api.md#score-entrapment).
 

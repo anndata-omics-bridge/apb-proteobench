@@ -7,7 +7,7 @@ import math
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, replace
-from typing import cast
+from typing import Literal, cast
 from urllib.parse import quote
 
 import numpy as np
@@ -28,6 +28,13 @@ from apb_proteobench.workflow import ProteoBenchResult
 
 _STORAGE_KEY = "proteobench"
 _DIAGNOSTICS_PREFIX = f"{_STORAGE_KEY}:"
+
+type ContaminantSource = Literal["apb-fasta", "vendor"]
+"""Where scoring's contaminants come from besides apb2's ``apb_Contaminant``.
+
+``apb-fasta``: the FASTA proteins containing the peptide; ``vendor``: the vendor's protein IDs
+containing the module's ``contaminant_flag``, as ProteoBench decides.
+"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,12 +68,13 @@ class ExtractedProteoBenchLayer:
 
 @dataclass(frozen=True, slots=True)
 class ScoredLayerResult:
-    """One selected layer's roles, persisted slot, and completed analysis."""
+    """One selected layer's roles, contaminant source, persisted slot, and completed analysis."""
 
     level_name: str
     layer_name: str
     diagnostics_slot: str
     roles: ResolvedRoles
+    contaminants: ContaminantSource
     analysis: ProteoBenchResult
 
 
@@ -86,11 +94,14 @@ def submission_content(
     parsed: ParsedLevels, configuration: ModuleSettings, scored: ScoredLayerResult
 ) -> SubmissionContent:
     """Return the quantities, runs and settings one scored layer contributes to a submission."""
-    source = extract_layer(parsed, configuration, scored.layer_name).calculation
+    source = extract_layer(
+        parsed, configuration, scored.layer_name, scored.contaminants
+    ).calculation
     if not isinstance(source.matrix, np.ndarray):
         raise TypeError("APB2 layer extraction did not produce a dense matrix")
     design = align_runs(source.observations, configuration)
     settings: dict[str, object] = configuration.model_dump(mode="json", exclude={"samples"})
+    settings["contaminants"] = scored.contaminants
     settings["source_revision"] = PROTEOBENCH_SOURCE_REVISION
     settings["diagnostic_method"] = scored.analysis.diagnostic_method
     settings["scoring_method"] = scored.analysis.scoring_method
@@ -151,6 +162,7 @@ def extract_layer(
     parsed: ParsedLevels,
     configuration: ModuleSettings,
     layer_name: str,
+    contaminants: ContaminantSource,
     /,
 ) -> ExtractedProteoBenchLayer:
     """Extract one layer from the configured level as typed scientific input."""
@@ -163,11 +175,19 @@ def extract_layer(
         ) from error
     _require_layer(level, layer_name)
     feature = _single_feature_key(level)
-    proteins = _protein_role(level)
+    proteins = _var_role(level, "protein_assignment")
     fasta = level.varm.get("fasta_validation")
     if fasta is None or "fasta_matches_contaminant" not in fasta.columns:
         raise ValueError("ProteoBench scoring requires apb-fasta peptide verification")
     markings = _vendor_markings(level)
+    if contaminants == "apb-fasta":
+        listed = fasta.get_column("fasta_matches_contaminant")
+    else:
+        listed = (
+            level.var.frame.get_column(_var_role(level, "fasta_accessions"))
+            .str.contains(configuration.general.contaminant_flag, literal=True)
+            .fill_null(False)
+        )
     matrix = (
         level.layers[layer_name].quantitative_values().to_numpy().astype(np.float64, copy=False).T
     )
@@ -180,8 +200,7 @@ def extract_layer(
             feature_ids=pd.Index(level.var.frame.get_column(feature).cast(pl.String).to_list()),
             reported_proteins=level.var.frame.get_column(proteins).to_pandas(),
             matched_organisms=fasta.get_column("fasta_matching_organisms").to_pandas(),
-            contaminants=fasta.get_column("fasta_matches_contaminant").to_numpy()
-            | markings.get_column("apb_Contaminant").to_numpy(),
+            contaminants=listed.to_numpy() | markings.get_column("apb_Contaminant").to_numpy(),
             decoys=markings.get_column("apb_Decoy").to_numpy(),
             level=level_name,
         ),
@@ -257,10 +276,12 @@ def diagnostics_slot(layer_name: str, /) -> str:
 
 
 def _result_record(results: Mapping[str, ScoredLayerResult]) -> dict[str, JsonValue]:
-    first_result = next(iter(results.values())).analysis
+    first = next(iter(results.values()))
+    first_result = first.analysis
     return {
         "compatibility_version": PROTEOBENCH_COMPATIBILITY_VERSION,
         "source_revision": PROTEOBENCH_SOURCE_REVISION,
+        "contaminants": first.contaminants,
         "layers": list(results),
         "diagnostic_method": cast(dict[str, JsonValue], first_result.diagnostic_method),
         "scoring_method": cast(dict[str, JsonValue], first_result.scoring_method),
@@ -332,11 +353,10 @@ def _vendor_markings(level: ParsedLevel) -> pl.DataFrame:
     return level.var.frame.select("apb_Decoy", "apb_Contaminant")
 
 
-def _protein_role(level: ParsedLevel) -> str:
-    roles = level.var.roles
-    value = roles.get("protein_assignment")
+def _var_role(level: ParsedLevel, role: str) -> str:
+    value = level.var.roles.get(role)
     if not isinstance(value, str) or value not in level.var.frame.columns:
-        raise ValueError("ProteoBench scoring requires a stored protein_assignment column role")
+        raise ValueError(f"ProteoBench scoring requires a stored {role} column role")
     return value
 
 

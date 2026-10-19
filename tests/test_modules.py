@@ -18,15 +18,15 @@ from apb_proteobench.configuration.load import (
 )
 
 EXPECTED_SUPPORTED_MODULE_HASHES = {
-    "dda_astral": "f556f0aa761eca058300eb0874cd764e076015cf81030f1194dbaf966195cd7d",
-    "dda_peptidoform": "f27fcdb89d53a06722282720fd16c89f627d9967036bb551dccc1f9a2cacce22",
-    "dda_qexactive": "80fde2bd093de08b16e11bf1cdf74d32626573e7c752184de544c1ea0dfa251e",
-    "dia_aif": "984dfa21f80fa4631bd6cbe120c662636014a7570f51ff0b36d92be322de51ae",
-    "dia_astral": "35bf718c54b964c40b3b4ff2e352bc82e9fd492fdd1c6d4da9d51cd588475568",
-    "dia_diapasef": "6072039f558cc979d41d2ca29c8134cab89a1b2eba1cd0171387464cca19d103",
-    "dia_plasma": "50901ea040970407721a417e8ebf8decadf21a8cd9d4ae83b7f6657fd035bef5",
-    "dia_singlecell": "de1f4e132aa5bd6ef7ed9538225a70fe8e69aac9ee2d7e2031b3a6dfac661eff",
-    "dia_zenotof": "b8daad3330a1b93b8f8ba24b4c081c17a77a9aaab4a3ca5b8ad2e17e8c6d525b",
+    "dda_astral": "c4f5ceda352d4dd24e5105a7ee8e4e7f378335d25937cd3527cb8d5cb7e95251",
+    "dda_peptidoform": "f9be47e59ba01fa007ec8f8d0a8fac4bfd5094e00b4eb2f505d91799e6027e1d",
+    "dda_qexactive": "d0cb8e3a1dc6fcc88af5e77b4638b4827d8f6e59043972b12566e01f8ac88d74",
+    "dia_aif": "34f8eaafa688118285398d0ae26517dc5fdf908eb0707c48976069561d398a48",
+    "dia_astral": "072f3e31d24bdacfa33c5936c28dd192d137a190c010ace91f27a85d39691a83",
+    "dia_diapasef": "0bb73c0722c34c852b4ac956d39b1f738c4be7d2af9b740e861638c4ddb8e063",
+    "dia_plasma": "cd8452bf80df674aea07f3250442ed72c8ed33847193c619cf30df106313f462",
+    "dia_singlecell": "a64b297599be4503f68ca04b413aa49bd75b84570e1256a51ddbed83d8abf75d",
+    "dia_zenotof": "b1514ad1e5d515f6ec620016abb9f1f836e218cdef711bd396b6ac50ad0e1454",
 }
 
 EXPECTED_SDRF_HASHES = {
@@ -154,4 +154,4 @@ def test_entrapment_module_records_its_sdrf() -> None:
     module = load_packaged_entrapment_module("entrapment_dia_astral")
 
     assert module.sdrf == "entrapment_dia_astral.sdrf.tsv"
-    assert module.sdrf_sha256 == "5ff1a9af225505a5631126e4753aa7ca32a377d69afe422c2fe58535894ca72f"
+    assert module.sdrf_sha256 == "65b1edb018b1fc2a87ab3dfa0bb2e2cac7aa57a20289f014a3418a0a9cc80104"

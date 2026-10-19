@@ -19,6 +19,7 @@ color = "#ddcc77"
 
 [general]
 "min_count_multispec" = 1
+"contaminant_flag" = "Cont_"
 "level" = "peptidoform"
 
 # Further run names that vendor tables report, keyed by SDRF comment[data file].

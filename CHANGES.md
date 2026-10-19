@@ -1,5 +1,10 @@
 # Changes
 
+## 2026-10-19
+
+- `run quant` and `benchmark` accept `--contaminants apb-fasta|vendor`, and `ProteoBenchAnalyzer` `contaminants`. `apb-fasta`, the default, keeps FASTA-matched contaminants; `vendor` marks features whose protein IDs (apb2's `fasta_accessions` column) contain the module's `contaminant_flag`, as ProteoBench does. Both add `apb_Contaminant`. Scoring provenance and the ProteoBot submission settings record the choice, so the submission hash changes.
+- **Breaking:** module TOMLs require `[general] contaminant_flag`; every packaged quantitative module sets `"Cont_"`, ProteoBench's value.
+
 ## 2026-10-08
 
 - **Breaking:** the `proteobench` record has `schema_version` 4 at the root. Level scores move to `result.scoring` and `result.entrapment`, with a `summary` per layer and q-value kind and `details` naming the `varm` slots; nested schema versions and `diagnostics` strings are gone, and entrapment scores store NaN as null.

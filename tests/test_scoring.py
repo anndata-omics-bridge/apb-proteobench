@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 from scipy import sparse
 
@@ -54,7 +55,33 @@ def test_scoring_refuses_a_result_without_vendor_markings() -> None:
     level.var.frame = level.var.frame.drop("apb_Decoy")
 
     with pytest.raises(ValueError, match=r"vendor markings; missing \['apb_Decoy'\]"):
-        extract_layer(parsed, module_settings(), "Intensity")
+        extract_layer(parsed, module_settings(), "Intensity", "apb-fasta")
+
+
+def test_vendor_contaminants_read_the_fasta_accessions_column() -> None:
+    # AlphaDIA-style: the assignment column lacks Cont_ where the accessions column has it.
+    parsed = parsed_result()
+    level = parsed.levels["ion"]
+    level.var.frame = level.var.frame.with_columns(
+        pl.Series("proteins", ["P1", "P2", "Cont_P3;P3", "P4", None, "P6"]),
+        pl.Series("apb_Contaminant", [True, False, False, False, False, False]),
+    )
+    level.var.roles = {**level.var.roles, "fasta_accessions": "proteins"}
+
+    fasta = extract_layer(parsed, module_settings(), "Intensity", "apb-fasta")
+    vendor = extract_layer(parsed, module_settings(), "Intensity", "vendor")
+
+    assert fasta.calculation.contaminants.tolist() == [True, False, False, True, False, False]
+    assert vendor.calculation.contaminants.tolist() == [True, False, True, False, False, False]
+
+
+def test_vendor_contaminants_require_the_fasta_accessions_role() -> None:
+    parsed = parsed_result()
+    level = parsed.levels["ion"]
+    level.var.roles = {"protein_assignment": "Protein_Ids"}
+
+    with pytest.raises(ValueError, match="requires a stored fasta_accessions column role"):
+        extract_layer(parsed, module_settings(), "Intensity", "vendor")
 
 
 def test_hy_uses_the_same_configuration_driven_calculation() -> None:

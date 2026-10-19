@@ -30,10 +30,15 @@ class ExpectedRatio(_SettingsModel):
 
 
 class ModuleGeneral(_SettingsModel):
-    """Scoring fields from the module ``[general]`` table."""
+    """Scoring fields from the module ``[general]`` table.
+
+    ``contaminant_flag`` marks a contaminant in the vendor's protein IDs, as ProteoBench's
+    ``contaminant_flag``; scoring reads it when contaminants come from the vendor.
+    """
 
     min_count_multispec: int = Field(ge=1)
     level: QuantificationLevel
+    contaminant_flag: str = Field(min_length=1)
     default_cutoff_min_feature: int = Field(default=1, ge=1)
     max_nr_observed: int = Field(default=6, ge=1)
 

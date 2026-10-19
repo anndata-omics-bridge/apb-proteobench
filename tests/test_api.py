@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import json
 from pathlib import Path
+from typing import Literal
 
 import polars as pl
 import pytest
@@ -215,6 +216,23 @@ def test_analyzer_annotates_and_scores_without_physical_io(tmp_path: Path) -> No
     assert "sample_name" in result.parsed.levels["ion"].obs.frame
     assert "proteobench:Intensity" in result.parsed.levels["ion"].varm
     assert not target.exists()
+
+
+@pytest.mark.parametrize("contaminants", ["apb-fasta", "vendor"])
+def test_analyzer_records_its_contaminant_source(
+    tmp_path: Path, contaminants: Literal["apb-fasta", "vendor"]
+) -> None:
+    module = tmp_path / "module.toml"
+    write_module(module)
+
+    result = ProteoBenchAnalyzer(load_module(module), contaminants=contaminants).analyze(
+        parsed_result()
+    )
+
+    provenance = _object(_object(result.parsed.metadata["proteobench"])["provenance"])
+    assert _object(provenance["scoring"])["contaminants"] == contaminants
+    assert result.submission("Intensity").settings["contaminants"] == contaminants
+    assert result.layers["Intensity"].analysis.scores.nr_feature == 3
 
 
 def _multi_layer_result() -> ParsedLevels:
@@ -560,6 +578,24 @@ def test_cli_scores_one_layer_and_defaults_to_x(
     assert status == 0
     assert list(read_parsed_levels(target).levels["ion"].varm) == ["fasta_validation", *expected]
     assert f"scored level=ion layer={expected[0].removeprefix('proteobench:')}" in "".join(messages)
+
+
+def test_cli_benchmark_takes_vendor_contaminants(tmp_path: Path) -> None:
+    source = tmp_path / "source.parquet"
+    module = tmp_path / "module.toml"
+    target = tmp_path / "scored.parquet"
+    write_module(module)
+    write_parsed_levels(parsed_result(), source)
+
+    status = app(
+        ["benchmark", str(source), str(module), str(target), "--contaminants", "vendor"],
+        exit_on_error=False,
+        result_action="return_value",
+    )
+
+    assert status == 0
+    provenance = _object(_object(read_parsed_levels(target).metadata["proteobench"])["provenance"])
+    assert _object(provenance["scoring"])["contaminants"] == "vendor"
 
 
 def test_cli_rejects_result_performance_for_non_ion_level(tmp_path: Path) -> None:

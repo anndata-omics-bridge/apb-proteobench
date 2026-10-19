@@ -21,6 +21,7 @@ color = "green"
 
 [general]
 "min_count_multispec" = 1
+"contaminant_flag" = "Cont_"
 "level" = "ion"
 "max_nr_observed" = 12
 

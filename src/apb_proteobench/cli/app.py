@@ -44,6 +44,11 @@ from apb_proteobench.cli.timings import write_tool_timings
 PRIMARY_LAYER_NAME = "X"
 """The ``--layer`` value that selects the APB primary layer stored in ``X``."""
 
+CONTAMINANTS_HELP = (
+    'Contaminant source: "apb-fasta" FASTA contaminants containing the peptide, or "vendor" '
+    "protein IDs containing the module's contaminant_flag, as ProteoBench"
+)
+
 app = App(
     name="apb-proteobench",
     help="Run complete ProteoBench workflows with optional pMultiQC/ProteoBot export",
@@ -87,6 +92,10 @@ class RunCliOptions:
         str,
         Parameter(help='Abundance layer to score; "X" is the APB primary layer'),
     ] = PRIMARY_LAYER_NAME
+    contaminants: Annotated[
+        Literal["apb-fasta", "vendor"],
+        Parameter(help=CONTAMINANTS_HELP),
+    ] = "apb-fasta"
     result_performance: Annotated[
         Path | None,
         Parameter(help="Write result_performance.csv and sibling ProteoBot JSON"),
@@ -250,6 +259,10 @@ def benchmark(
         str,
         Parameter(help='Abundance layer to score; "X" is the APB primary layer'),
     ] = PRIMARY_LAYER_NAME,
+    contaminants: Annotated[
+        Literal["apb-fasta", "vendor"],
+        Parameter(help=CONTAMINANTS_HELP),
+    ] = "apb-fasta",
     result_performance: Annotated[
         Path | None,
         Parameter(help="Write result_performance.csv and sibling ProteoBot JSON"),
@@ -268,9 +281,9 @@ def benchmark(
         _require_new_target(source, target)
         parsed = read_parsed_levels(source)
         loaded = _load_module(module)
-        result = ProteoBenchAnalyzer(loaded, layers=_layer_names(layer, parsed, loaded)).analyze(
-            parsed
-        )
+        result = ProteoBenchAnalyzer(
+            loaded, layers=_layer_names(layer, parsed, loaded), contaminants=contaminants
+        ).analyze(parsed)
         target.parent.mkdir(parents=True, exist_ok=True)
         write_parsed_levels(result.parsed, target)
         _export_result_performance(result, {}, result_performance)
@@ -334,7 +347,9 @@ def run_quant(
         started = perf_counter()
         parsed = conversion.verified.parsed
         result = ProteoBenchAnalyzer(
-            loaded_module, layers=_layer_names(options.layer, parsed, loaded_module)
+            loaded_module,
+            layers=_layer_names(options.layer, parsed, loaded_module),
+            contaminants=options.contaminants,
         ).analyze(parsed)
         seconds["analyze"] = perf_counter() - started
         started = perf_counter()

@@ -44,7 +44,7 @@ def module_settings(*, hy: bool = False) -> ModuleSettings:
     return ModuleSettings(
         species_expected_ratio=ratios,
         species_mapper=mapper,
-        general=ModuleGeneral(min_count_multispec=1, level="ion"),
+        general=ModuleGeneral(min_count_multispec=1, level="ion", contaminant_flag="Cont_"),
         samples=[
             SampleSettings(raw_file="run_A1", sample_name="A1", condition="A"),
             SampleSettings(raw_file="run_A2", sample_name="A2", condition="A"),
@@ -102,7 +102,7 @@ def parsed_result() -> ParsedLevels:
             }
         ),
         ("feature",),
-        {"protein_assignment": "Protein_Ids"},
+        {"protein_assignment": "Protein_Ids", "fasta_accessions": "Protein_Ids"},
         primary_layer="Intensity",
         abundance={"Intensity": pl.DataFrame(matrix.T, orient="row")},
         uns={"quantification_level": "ion"},
@@ -138,7 +138,9 @@ def write_module(path: Path, /, *, alias: bool = False, hy: bool = False) -> Non
                 f'suffix = "{flag}"',
             ]
         )
-    lines.extend(["[general]", 'level = "ion"', "min_count_multispec = 1"])
+    lines.extend(
+        ["[general]", 'level = "ion"', "min_count_multispec = 1", 'contaminant_flag = "Cont_"']
+    )
     if alias:
         lines.append("[run_aliases]")
         lines.extend(
