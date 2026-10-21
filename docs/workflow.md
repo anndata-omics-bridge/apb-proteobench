@@ -91,7 +91,7 @@ from apb2.api import ParseRuleCompiler, write_parsed_levels
 from apb_fasta.api import FastaAnnotator
 from apb_proteobench.api import ProteoBenchAnalyzer, load_module
 
-compiler = ParseRuleCompiler(
+compiler = ParseRuleCompiler.detect(
     Path("report.tsv"),
     Path("search-parameters.txt"),
     software="spectronaut",

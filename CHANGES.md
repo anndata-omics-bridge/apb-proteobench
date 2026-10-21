@@ -1,5 +1,10 @@
 # Changes
 
+## 2026-10-21
+
+- The CLI and tests build compilers with apb2's `ParseRuleCompiler.detect(...)`, which replaces the `ParseRuleCompiler(...)` constructor.
+- ProteoBot datapoints read `ident_fdr_psm`, `ident_fdr_peptide` and `ident_fdr_protein` as the numbers apb2 now stores, and the unwrapping of apb2's former `{"value": x}` objects is gone. The datapoint values are unchanged.
+
 ## 2026-10-20
 
 - **Breaking:** `--contaminants apb-fasta|vendor` becomes `--proteins matched|vendor`, and `ProteoBenchAnalyzer` `contaminants` becomes `proteins`. `vendor` now decides species as well as contaminants from the proteins the vendor reports, which apb-fasta resolves in the FASTA (`reported_member_organisms`, `reported_members_contaminant`), as ProteoBench decides them without its `mapper.csv`. Provenance and submission settings record `proteins`.

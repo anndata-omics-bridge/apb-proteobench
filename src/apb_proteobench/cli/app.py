@@ -187,7 +187,7 @@ def _convert_and_verify(
     if not fasta_paths:
         raise ValueError("at least one FASTA path is required")
     started = perf_counter()
-    compiler = ParseRuleCompiler(
+    compiler = ParseRuleCompiler.detect(
         data,
         params,
         requested_levels=None if level is None else (level,),
@@ -627,9 +627,9 @@ def _datapoint(
         "software_version": _text_parameter(parameters, "software_version") or "",
         "search_engine": _text_parameter(parameters, "search_engine"),
         "search_engine_version": _text_parameter(parameters, "search_engine_version"),
-        "ident_fdr_psm": _probability_parameter(parameters, "ident_fdr_psm"),
-        "ident_fdr_peptide": _probability_parameter(parameters, "ident_fdr_peptide"),
-        "ident_fdr_protein": _probability_parameter(parameters, "ident_fdr_protein"),
+        "ident_fdr_psm": _scalar_parameter(parameters, "ident_fdr_psm"),
+        "ident_fdr_peptide": _scalar_parameter(parameters, "ident_fdr_peptide"),
+        "ident_fdr_protein": _scalar_parameter(parameters, "ident_fdr_protein"),
         "enable_match_between_runs": _bool_parameter(
             parameters, "enable_match_between_runs", default=False
         ),
@@ -689,13 +689,6 @@ def _bool_parameter(
 ) -> bool:
     value = parameters.get(name)
     return value if isinstance(value, bool) else default
-
-
-def _probability_parameter(parameters: Mapping[str, object], name: str, /) -> object:
-    value = parameters.get(name)
-    if isinstance(value, dict):
-        return value.get("value")
-    return value
 
 
 def _tolerance_parameter(parameters: Mapping[str, object], name: str, /) -> object:

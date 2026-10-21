@@ -94,7 +94,7 @@ def _fasta(fasta: Path) -> FastaAnnotator:
 
 def test_every_catalogued_q_value_kind_is_scored(tmp_path: Path) -> None:
     data, parameters, fasta = _write_inputs(tmp_path)
-    parsed = ParseRuleCompiler(data, parameters, requested_levels=("ion",)).compile().parse()
+    parsed = ParseRuleCompiler.detect(data, parameters, requested_levels=("ion",)).compile().parse()
     analyzer = EntrapmentAnalyzer(
         load_packaged_entrapment_module("entrapment_dia_astral"), _fasta(fasta)
     )
@@ -141,7 +141,7 @@ def test_every_catalogued_q_value_kind_is_scored(tmp_path: Path) -> None:
 
 def test_a_result_scored_once_refuses_a_second_scoring(tmp_path: Path) -> None:
     data, parameters, fasta = _write_inputs(tmp_path)
-    parsed = ParseRuleCompiler(data, parameters, requested_levels=("ion",)).compile().parse()
+    parsed = ParseRuleCompiler.detect(data, parameters, requested_levels=("ion",)).compile().parse()
     analyzer = EntrapmentAnalyzer(
         load_packaged_entrapment_module("entrapment_dia_astral"), _fasta(fasta)
     )
