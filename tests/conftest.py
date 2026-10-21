@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import polars as pl
-from apb2.api import ParsedLevel, ParsedLevels
+from apb2.api import JsonValue, ParsedLevel, ParsedLevels
 from numpy.typing import NDArray
 
 from apb_proteobench.calculation.contracts import QuantitativeLevelInput
@@ -84,12 +85,21 @@ def quantitative_input(*, hy: bool = False) -> QuantitativeLevelInput:
     )
 
 
-def parsed_result() -> ParsedLevels:
-    """Return an unannotated one-level numeric APB result."""
+def parsed_result(
+    layers: Sequence[str] = ("Intensity",), rule_json: str | None = None
+) -> ParsedLevels:
+    """Return an unannotated one-level numeric APB result.
+
+    Every layer holds the same values; the first is primary. ``rule_json`` binds the level to
+    a packaged APB2 rule, as conversion records it.
+    """
     inputs = quantitative_input()
     features = inputs.feature_ids.astype(str).tolist()
     proteins = inputs.reported_proteins.astype(str).tolist()
     matrix = matrix_values()
+    uns: dict[str, JsonValue] = {"quantification_level": "ion"}
+    if rule_json is not None:
+        uns["provenance"] = {"rule_json": rule_json}
     level = ParsedLevel.build(
         pl.DataFrame({"Run": ["run_A1", "run_A2", "run_B1", "run_B2"]}),
         ("Run",),
@@ -103,9 +113,9 @@ def parsed_result() -> ParsedLevels:
         ),
         ("feature",),
         {"protein_assignment": "Protein_Ids", "fasta_accessions": "Protein_Ids"},
-        primary_layer="Intensity",
-        abundance={"Intensity": pl.DataFrame(matrix.T, orient="row")},
-        uns={"quantification_level": "ion"},
+        primary_layer=layers[0],
+        abundance={name: pl.DataFrame(matrix.T, orient="row") for name in layers},
+        uns=uns,
         varm={
             "fasta_validation": pl.DataFrame(
                 {
@@ -127,8 +137,13 @@ SPECIES_ORGANISMS = {
 }
 
 
-def write_module(path: Path, /, *, alias: bool = False, hy: bool = False) -> None:
-    """Write the small module as a module TOML and the SDRF it names beside it."""
+def write_module(
+    path: Path, /, *, alias: bool = False, hy: bool = False, normalisation: str | None = None
+) -> None:
+    """Write the small module as a module TOML and the SDRF it names beside it.
+
+    ``normalisation`` sets the module's ``abundance_normalisation``.
+    """
     settings = module_settings(hy=hy)
     sdrf = path.with_suffix(".sdrf.tsv")
     lines = [f'sdrf = "{sdrf.name}"']
@@ -141,6 +156,8 @@ def write_module(path: Path, /, *, alias: bool = False, hy: bool = False) -> Non
             ]
         )
     lines.extend(["[general]", 'level = "ion"', "min_count_multispec = 1"])
+    if normalisation is not None:
+        lines.append(f'abundance_normalisation = "{normalisation}"')
     if alias:
         lines.append("[run_aliases]")
         lines.extend(

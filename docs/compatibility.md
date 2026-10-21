@@ -18,16 +18,16 @@ Measured against the stored ProteoBench datapoints of 219 corpus submissions, `n
 - MaxQuant: its 0.2 % of features without a FASTA match are its reversed decoys (`REV__`), which ProteoBench excludes as decoys too
 - i2MassChroQ: 21–24 %, because APB2's i2MassChroQ rule keeps modifications in `ProForma_peptide`, so modified peptides match no protein
 
-## The scored layer is chosen by the caller
+## The scored layer is chosen by the module or the caller
 
-`run` and `benchmark` score one abundance layer: `--layer NAME`, by default `X`, the APB2 rule's primary layer. ProteoBench fixes the quantity column per module and tool, and its plasma module departs from its other DIA modules:
+`run` and `benchmark` score one abundance layer: `--layer NAME`, by default `X`, the module's layer. That is the APB2 rule's primary layer, unless the module sets `abundance_normalisation`; then it is the `intensity` layer with that normalisation in apb-catalog's `abundance` set. ProteoBench fixes the quantity column per module and tool, and its plasma module departs from its other DIA modules:
 
 | Tool | ProteoBench plasma | ProteoBench other DIA modules | APB primary (`X`) |
 | --- | --- | --- | --- |
 | DIA-NN | `Precursor.Quantity` | `Precursor.Normalised` | `Precursor_Normalised` |
 | Spectronaut | `FG.Quantity` | `EG.TotalQuantity (Settings)` | `FG_Quantity` |
 
-To reproduce ProteoBench's plasma datapoints from DIA-NN results, pass `--layer Precursor_Quantity`. With `X`, DIA-NN 2.x plasma results differ by more than 50 %, because DIA-NN's normalisation factors differ between the two conditions there.
+`dia_plasma` sets `abundance_normalisation = "none"`, so `X` scores DIA-NN's `Precursor_Quantity`, as ProteoBench does. The primary layer would differ by more than 50 % on DIA-NN 2.x plasma results, because DIA-NN's normalisation factors differ between the two conditions there. Where the catalogue names no un-normalised layer, such as for PEAKS, AlphaDIA and Spectronaut, the primary layer is scored and the level summary entry `abundance_normalisation` needs attention.
 
 ## Entrapment pairs come from the FASTA
 

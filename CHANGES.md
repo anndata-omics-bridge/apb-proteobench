@@ -2,6 +2,8 @@
 
 ## 2026-10-21
 
+- Module TOMLs take `[general] abundance_normalisation` (`none` or `run_setting`, APB only). The module then scores the level's `intensity` layer with that normalisation, which apb-catalog's `abundance` set names per software; where the set names none, or cannot say, the primary layer is scored and the level summary entry `abundance_normalisation` needs attention. The catalogue snapshot is stored under `metadata["catalog"]["abundance"]`. `--layer X` means the module's layer; a named `--layer` still overrides.
+- `dia_plasma` sets `abundance_normalisation = "none"`: `--layer X` now scores DIA-NN's `Precursor_Quantity`, as ProteoBench's plasma module does, without `--layer Precursor_Quantity`. Its submission settings, and so its ProteoBot `id` and `intermediate_hash`, now include the key; modules without it hash as before.
 - The CLI and tests build compilers with apb2's `ParseRuleCompiler.detect(...)`, which replaces the `ParseRuleCompiler(...)` constructor.
 - ProteoBot datapoints read `ident_fdr_psm`, `ident_fdr_peptide` and `ident_fdr_protein` as the numbers apb2 now stores, and the unwrapping of apb2's former `{"value": x}` objects is gone. The datapoint values are unchanged.
 

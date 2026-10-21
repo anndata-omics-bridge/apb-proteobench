@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 from apb2.api import JsonValue, ParsedLevel, ParsedLevels
+from apb_catalog.api import Catalog, ResolutionSnapshot, UnresolvedField, attach_snapshot
 from numpy.typing import NDArray
 
 from apb_proteobench.annotation import PROTEOBENCH_SCHEMA_VERSION
@@ -28,6 +29,8 @@ from apb_proteobench.workflow import ProteoBenchResult
 
 _STORAGE_KEY = "proteobench"
 _DIAGNOSTICS_PREFIX = f"{_STORAGE_KEY}:"
+ABUNDANCE_CATALOGUE = "abundance"
+"""The apb-catalog set saying what each abundance layer measures and whether it is normalised."""
 
 type ProteinSource = Literal["matched", "vendor"]
 """Which proteins decide a feature's species and contaminants, both resolved by apb-fasta.
@@ -83,6 +86,19 @@ class ScoredLayerResult:
 
 
 @dataclass(frozen=True, slots=True)
+class ModuleLayer:
+    """The layer a module's abundance normalisation selects, and the catalogue's answer.
+
+    ``found`` is false when the catalogue has no such layer, or cannot say; the level's primary
+    layer is then scored instead.
+    """
+
+    name: str
+    found: bool
+    snapshot: ResolutionSnapshot
+
+
+@dataclass(frozen=True, slots=True)
 class SubmissionContent:
     """Selected quantitative content used for a new ProteoBot upload identity."""
 
@@ -102,7 +118,12 @@ def submission_content(
     if not isinstance(source.matrix, np.ndarray):
         raise TypeError("APB2 layer extraction did not produce a dense matrix")
     design = align_runs(source.observations, configuration)
-    settings: dict[str, object] = configuration.model_dump(mode="json", exclude={"samples"})
+    unset = configuration.general.abundance_normalisation is None
+    # A module without the setting hashes as it did before the setting existed.
+    settings: dict[str, object] = configuration.model_dump(
+        mode="json",
+        exclude={"samples": True, "general": {"abundance_normalisation"}} if unset else {"samples"},
+    )
     settings["proteins"] = scored.proteins
     settings["source_revision"] = PROTEOBENCH_SOURCE_REVISION
     settings["diagnostic_method"] = scored.analysis.diagnostic_method
@@ -149,15 +170,47 @@ def select_layers(
     /,
 ) -> tuple[str, ...]:
     """Name the abundance layers to score on the configured level; ``None`` is all of them."""
+    level = _configured_level(parsed, configuration)
+    _require_available_storage(level)
+    return level.abundance_layers(layers)
+
+
+def module_layer(parsed: ParsedLevels, configuration: ModuleSettings, /) -> ModuleLayer | None:
+    """Find the layer the module's abundance normalisation asks for; ``None`` if it asks none.
+
+    That is the configured level's ``intensity`` layer with that normalisation in apb-catalog's
+    ``abundance`` set. When the set has none, or cannot say, the level's primary layer stands
+    in and the answer is marked not found. An ambiguous answer raises ``UnresolvedField``.
+    """
+    normalisation = configuration.general.abundance_normalisation
+    if normalisation is None:
+        return None
+    level_name = configuration.general.level
+    level = _configured_level(parsed, configuration)
+    catalog = Catalog(parsed, ABUNDANCE_CATALOGUE)
+    try:
+        table = catalog.layer(
+            level_name, concept="abundance", kind="intensity", normalisation=normalisation
+        )
+    except UnresolvedField as error:
+        if error.resolution.status != "unknown":
+            raise
+        table = None
+    return ModuleLayer(
+        name=level.primary_layer_name if table is None else table.layer_name,
+        found=table is not None,
+        snapshot=catalog.snapshot(),
+    )
+
+
+def _configured_level(parsed: ParsedLevels, configuration: ModuleSettings, /) -> ParsedLevel:
     level_name = configuration.general.level
     try:
-        level = parsed.levels[level_name]
+        return parsed.levels[level_name]
     except KeyError as error:
         raise ValueError(
             f"embedded ProteoBench configuration selects unavailable level {level_name!r}"
         ) from error
-    _require_available_storage(level)
-    return level.abundance_layers(layers)
 
 
 def extract_layer(
@@ -213,9 +266,15 @@ def extract_layer(
 def persist_results(
     parsed: ParsedLevels,
     results: Mapping[str, ScoredLayerResult],
+    chosen: ModuleLayer | None = None,
     /,
 ) -> ParsedLevels:
-    """Return a copy with every selected layer's diagnostics and scores attached."""
+    """Return a copy with every selected layer's diagnostics and scores attached.
+
+    ``chosen``, the layer a module's abundance normalisation selected, adds a summary entry
+    that needs attention when the catalogue did not find it, and stores the catalogue's
+    snapshot under ``metadata["catalog"]["abundance"]``.
+    """
     if not results:
         raise ValueError("cannot persist an empty ProteoBench layer result")
     first = next(iter(results.values()))
@@ -241,9 +300,10 @@ def persist_results(
     level_metadata = deepcopy(level.metadata)
     tool = _tool_section(level_metadata)
     _object_field(tool, "result")["scoring"] = layer_records
-    _list_field(tool, "summary").extend(
-        entry for selected in results.values() for entry in _scoring_summary(selected)
-    )
+    summary = _list_field(tool, "summary")
+    summary.extend(entry for selected in results.values() for entry in _scoring_summary(selected))
+    if chosen is not None:
+        summary.append(_module_layer_summary(chosen))
     _list_field(tool, "details").extend(
         {"slot": "varm", "name": selected.diagnostics_slot} for selected in results.values()
     )
@@ -258,7 +318,7 @@ def persist_results(
     provenance["scoring"] = _result_record(results)
     levels = dict(parsed.levels)
     levels[first.level_name] = replace(level, varm=varm, metadata=level_metadata)
-    return replace(
+    scored = replace(
         parsed,
         levels=levels,
         uns=deepcopy(parsed.uns),
@@ -266,6 +326,7 @@ def persist_results(
         annotation_tables=deepcopy(parsed.annotation_tables),
         feature_relations=deepcopy(parsed.feature_relations),
     )
+    return scored if chosen is None else attach_snapshot(scored, chosen.snapshot)
 
 
 def diagnostics_slot(layer_name: str, /) -> str:
@@ -332,6 +393,18 @@ def _scoring_summary(result: ScoredLayerResult) -> list[JsonValue]:
             }
         )
     return entries
+
+
+def _module_layer_summary(chosen: ModuleLayer) -> JsonValue:
+    """Whether the catalogue found the module's layer; if not, the primary layer was scored."""
+    return {
+        "name": "abundance_normalisation",
+        "label": "Layer with the module's abundance normalisation found",
+        "value": chosen.found,
+        "unit": "found",
+        "status": "ok" if chosen.found else "attention",
+        "layer": chosen.name,
+    }
 
 
 def _single_feature_key(level: ParsedLevel) -> str:

@@ -18,6 +18,7 @@ from apb_proteobench.integration import (
     SubmissionContent,
     diagnostics_slot,
     extract_layer,
+    module_layer,
     persist_results,
     select_layers,
     submission_content,
@@ -69,7 +70,9 @@ class ProteoBenchAnalyzer:
     ) -> None:
         """Create a complete analyzer for one validated ProteoBench module.
 
-        ``layers`` names the abundance layers to score; ``None`` scores every one.
+        ``layers`` names the abundance layers to score; ``None`` scores every one, unless the
+        module sets ``abundance_normalisation``: then ``None`` scores the layer apb-catalog's
+        ``abundance`` set names for it, or the primary layer when the set names none.
         ``proteins`` picks which proteins decide species and contaminants: ``"matched"``, the
         FASTA proteins containing the peptide, or ``"vendor"``, the proteins the vendor reports,
         as ProteoBench decides. Both add the contaminants apb2 marked ``apb_Contaminant``.
@@ -84,8 +87,10 @@ class ProteoBenchAnalyzer:
     def analyze(self, parsed: ParsedLevels) -> ProteoBenchAnalysisResult:
         """Annotate and score canonical APB2 levels without physical I/O."""
         annotated = self._annotation_parser.parse(parsed).annotate()
+        chosen = module_layer(annotated, self._configuration) if self._layers is None else None
+        names = self._layers if chosen is None else (chosen.name,)
         layers: dict[str, ScoredLayerResult] = {}
-        for layer_name in select_layers(annotated, self._configuration, self._layers):
+        for layer_name in select_layers(annotated, self._configuration, names):
             selected = extract_layer(annotated, self._configuration, layer_name, self._proteins)
             analysis = analyze_level(
                 selected.calculation,
@@ -102,7 +107,7 @@ class ProteoBenchAnalyzer:
                 analysis=analysis,
             )
         return ProteoBenchAnalysisResult(
-            parsed=persist_results(annotated, layers),
+            parsed=persist_results(annotated, layers, chosen),
             configuration=self._configuration,
             layers=layers,
         )

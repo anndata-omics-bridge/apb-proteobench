@@ -42,7 +42,13 @@ from apb_proteobench.cli.result_performance import write_result_performance_bund
 from apb_proteobench.cli.timings import write_tool_timings
 
 PRIMARY_LAYER_NAME = "X"
-"""The ``--layer`` value that selects the APB primary layer stored in ``X``."""
+"""The ``--layer`` value that selects the module's layer: the APB primary layer stored in ``X``,
+or the layer the module's abundance normalisation selects."""
+
+LAYER_HELP = (
+    'Abundance layer to score; "X" is the module\'s layer: the APB primary layer, or the one '
+    "its abundance normalisation selects"
+)
 
 PROTEINS_HELP = (
     'Proteins deciding species and contaminants: "matched", the FASTA proteins containing the '
@@ -86,7 +92,7 @@ class RunCliOptions:
     ] = None
     layer: Annotated[
         str,
-        Parameter(help='Abundance layer to score; "X" is the APB primary layer'),
+        Parameter(help=LAYER_HELP),
     ] = PRIMARY_LAYER_NAME
     proteins: Annotated[
         Literal["matched", "vendor"],
@@ -245,7 +251,7 @@ def benchmark(
     *,
     layer: Annotated[
         str,
-        Parameter(help='Abundance layer to score; "X" is the APB primary layer'),
+        Parameter(help=LAYER_HELP),
     ] = PRIMARY_LAYER_NAME,
     proteins: Annotated[
         Literal["matched", "vendor"],
@@ -276,7 +282,7 @@ def benchmark(
         write_parsed_levels(result.parsed, target)
         _export_result_performance(result, {}, result_performance)
         _write_scores(result, {}, scores)
-    except (OSError, ValueError, ValidationError) as error:
+    except (OSError, ValueError, ValidationError, LookupError) as error:
         logger.error(str(error))
         return 1
     report_score(result, source, target, verbose=verbose)
@@ -302,7 +308,8 @@ def run_quant(
     Quantitative aggregation is a separate step: run apb-aggregate between conversion
     and benchmarking when the scored level must be derived from a lower one. Use
     --level LEVEL to convert one quantification level. --layer NAME scores one abundance
-    layer; the default "X" is the APB primary layer.
+    layer; the default "X" is the module's layer, the APB primary layer unless the module
+    sets abundance_normalisation.
     --timings-dir records internal operation timings outside the scored result.
     """
     if options.params is None:
@@ -354,7 +361,7 @@ def run_quant(
             conversion.levels,
             exported=options.result_performance is not None,
         )
-    except (OSError, ValueError, ValidationError) as error:
+    except (OSError, ValueError, ValidationError, LookupError) as error:
         logger.error(str(error))
         return 1
     _report_vendor_benchmark(
@@ -550,10 +557,14 @@ def _layer_names(
 ) -> tuple[str, ...] | None:
     """Name the scored layer; "X" is the configured level's primary layer.
 
-    An absent level returns ``None``: the analyzer then reports the unavailable level.
+    ``None`` leaves the choice to the analyzer: for a module that sets an abundance
+    normalisation, which selects its layer through apb-catalog, and for an absent level, which
+    the analyzer reports.
     """
     if layer != PRIMARY_LAYER_NAME:
         return (layer,)
+    if module.settings.general.abundance_normalisation is not None:
+        return None
     level = parsed.levels.get(module.settings.general.level)
     return None if level is None else (level.primary_layer_name,)
 

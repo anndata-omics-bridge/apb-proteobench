@@ -24,7 +24,7 @@ EXPECTED_SUPPORTED_MODULE_HASHES = {
     "dia_aif": "984dfa21f80fa4631bd6cbe120c662636014a7570f51ff0b36d92be322de51ae",
     "dia_astral": "35bf718c54b964c40b3b4ff2e352bc82e9fd492fdd1c6d4da9d51cd588475568",
     "dia_diapasef": "6072039f558cc979d41d2ca29c8134cab89a1b2eba1cd0171387464cca19d103",
-    "dia_plasma": "50901ea040970407721a417e8ebf8decadf21a8cd9d4ae83b7f6657fd035bef5",
+    "dia_plasma": "b0e1d2afa3399cb0fa062cf62581a8664f88ba6a9a654ae97c8817224aff3f96",
     "dia_singlecell": "de1f4e132aa5bd6ef7ed9538225a70fe8e69aac9ee2d7e2031b3a6dfac661eff",
     "dia_zenotof": "b8daad3330a1b93b8f8ba24b4c081c17a77a9aaab4a3ca5b8ad2e17e8c6d525b",
 }

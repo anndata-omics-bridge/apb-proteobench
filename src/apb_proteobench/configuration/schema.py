@@ -7,6 +7,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 QuantificationLevel = Literal["ion", "peptidoform"]
+AbundanceNormalisation = Literal["none", "run_setting"]
+"""apb-catalog's ``normalisation`` values for an ``abundance`` layer."""
 
 
 class _SettingsModel(BaseModel):
@@ -30,12 +32,17 @@ class ExpectedRatio(_SettingsModel):
 
 
 class ModuleGeneral(_SettingsModel):
-    """Scoring fields from the module ``[general]`` table."""
+    """Scoring fields from the module ``[general]`` table.
+
+    ``abundance_normalisation`` makes the module score the level's ``intensity`` layer with
+    that normalisation, found in apb-catalog's ``abundance`` set, instead of the primary layer.
+    """
 
     min_count_multispec: int = Field(ge=1)
     level: QuantificationLevel
     default_cutoff_min_feature: int = Field(default=1, ge=1)
     max_nr_observed: int = Field(default=6, ge=1)
+    abundance_normalisation: AbundanceNormalisation | None = None
 
     @model_validator(mode="after")
     def _validate_cutoffs(self) -> ModuleGeneral:

@@ -23,6 +23,9 @@ color = "green"
 "min_count_multispec" = 1
 "level" = "ion"
 "max_nr_observed" = 12
+# APB only: score the un-normalised intensity, as upstream scores DIA-NN's Precursor.Quantity;
+# apb-catalog's abundance set names it per software, else the primary layer is scored.
+"abundance_normalisation" = "none"
 
 # Further run names that vendor tables report, keyed by SDRF comment[data file].
 [run_aliases]
