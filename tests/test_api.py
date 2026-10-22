@@ -102,9 +102,15 @@ def test_annotation_preserves_root_annotation_tables_and_relations(tmp_path: Pat
         .with_annotation_table("members", pl.DataFrame({"member": ["P1"]}), ("member",))
         .with_feature_relation(
             "membership",
-            "members",
-            "ion",
-            pl.DataFrame({"row": [0], "column": [0], "value": [1.0]}),
+            pl.DataFrame(
+                {
+                    "source": ["members"],
+                    "row": [0],
+                    "target": ["ion"],
+                    "column": [0],
+                    "value": [1.0],
+                }
+            ),
         )
     )
 
