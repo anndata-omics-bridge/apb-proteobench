@@ -95,9 +95,15 @@ class EntrapmentAnalyzer:
 def _precursors(
     parsed: ParsedLevels, level_name: QuantificationLevel, catalog: Catalog
 ) -> tuple[pl.DataFrame, tuple[str, ...]]:
-    """Return one row per precursor with its best q-value across runs for each kind."""
-    kinds = catalog.layer(level_name, concept="confidence")
-    if kinds is None:
+    """Return one row per precursor with its q-value for each kind.
+
+    A kind stored per run, as a layer, takes its best value across runs; one stored once per
+    precursor, in ``var``, is that value.
+    """
+    per_run = catalog.layer(level_name, concept="confidence") or ()
+    per_precursor = catalog.var(level_name, concept="confidence") or ()
+    kinds = tuple(sorted({*per_run, *per_precursor}))
+    if not kinds:
         raise EntrapmentError(
             f"the {level_name} level offers no precursor q-value catalogued in {CATALOGUE!r}"
         )
@@ -110,6 +116,12 @@ def _precursors(
         pl.Series("sequence", rendered.to_list(), dtype=pl.String),
     )
     for kind in kinds:
+        if kind not in per_run:
+            column = catalog.var(level_name, concept="confidence", kind=kind)
+            if column is None:
+                raise EntrapmentError(f"the catalogue offers kind {kind!r} but resolves no column")
+            frame = frame.with_columns(column.cast(pl.Float64).alias(kind))
+            continue
         table = catalog.layer(level_name, concept="confidence", kind=kind)
         if table is None:
             raise EntrapmentError(f"the catalogue offers kind {kind!r} but resolves no layer")
