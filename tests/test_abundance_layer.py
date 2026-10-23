@@ -1,4 +1,4 @@
-"""A module's abundance normalisation picks the scored layer through apb-catalog."""
+"""A module's abundance normalization picks the scored layer through apb-catalog."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def _rule_json(rule: str) -> str:
 
 
 def _diann() -> ParsedLevels:
-    """DIA-NN 1.8's ion level: normalised quantity primary, un-normalised beside it."""
+    """DIA-NN 1.8's ion level: normalized quantity primary, un-normalized beside it."""
     return parsed_result(
         ("Precursor_Normalised", "Precursor_Quantity"), _rule_json("diann/v1_8/rules.json")
     )
@@ -36,17 +36,17 @@ def _analyze(
     parsed: ParsedLevels,
     /,
     *,
-    normalisation: str | None,
+    normalization: str | None,
     layers: tuple[str, ...] | None = None,
 ) -> ProteoBenchAnalysisResult:
     folder.mkdir(exist_ok=True)
     module = folder / "module.toml"
-    write_module(module, normalisation=normalisation)
+    write_module(module, normalization=normalization)
     return ProteoBenchAnalyzer(load_module(module), layers=layers).analyze(parsed)
 
 
 def _entry(result: ProteoBenchAnalysisResult) -> dict[str, JsonValue] | None:
-    """The level summary entry for the module's abundance normalisation, if written."""
+    """The level summary entry for the module's abundance normalization, if written."""
     tool = result.parsed.levels["ion"].metadata["proteobench"]
     assert isinstance(tool, dict)
     summary = tool["summary"]
@@ -54,7 +54,7 @@ def _entry(result: ProteoBenchAnalysisResult) -> dict[str, JsonValue] | None:
     entries = [
         entry
         for entry in summary
-        if isinstance(entry, dict) and entry["name"] == "abundance_normalisation"
+        if isinstance(entry, dict) and entry["name"] == "abundance_normalization"
     ]
     return entries[0] if entries else None
 
@@ -64,7 +64,7 @@ def _general(result: ProteoBenchAnalysisResult, layer: str) -> dict[str, object]
 
 
 def test_the_module_scores_the_layer_the_catalogue_names(tmp_path: Path) -> None:
-    result = _analyze(tmp_path, _diann(), normalisation="none")
+    result = _analyze(tmp_path, _diann(), normalization="none")
 
     assert list(result.layers) == ["Precursor_Quantity"]
     entry = _entry(result)
@@ -79,10 +79,10 @@ def test_the_module_scores_the_layer_the_catalogue_names(tmp_path: Path) -> None
 def test_without_a_catalogued_layer_the_primary_layer_needs_attention(
     tmp_path: Path, rule: str | None
 ) -> None:
-    """PEAKS writes no un-normalised layer; a result bound to no rule leaves the catalogue unsure."""
+    """PEAKS writes no un-normalized layer; a result bound to no rule leaves the catalogue unsure."""
     parsed = parsed_result(("Normalized_Area",), None if rule is None else _rule_json(rule))
 
-    result = _analyze(tmp_path, parsed, normalisation="none")
+    result = _analyze(tmp_path, parsed, normalization="none")
 
     assert list(result.layers) == ["Normalized_Area"]
     entry = _entry(result)
@@ -94,28 +94,28 @@ def test_without_a_catalogued_layer_the_primary_layer_needs_attention(
     )
 
 
-def test_a_named_layer_overrides_the_module_normalisation(tmp_path: Path) -> None:
-    result = _analyze(tmp_path, _diann(), normalisation="none", layers=("Precursor_Normalised",))
+def test_a_named_layer_overrides_the_module_normalization(tmp_path: Path) -> None:
+    result = _analyze(tmp_path, _diann(), normalization="none", layers=("Precursor_Normalised",))
 
     assert list(result.layers) == ["Precursor_Normalised"]
     assert _entry(result) is None
     assert "catalog" not in result.parsed.metadata
 
 
-def test_an_unset_normalisation_stays_out_of_the_hashed_settings(tmp_path: Path) -> None:
+def test_an_unset_normalization_stays_out_of_the_hashed_settings(tmp_path: Path) -> None:
     """Modules without the setting keep the ProteoBot identity they had before it existed."""
-    plain = _analyze(tmp_path / "plain", parsed_result(), normalisation=None)
-    plasma = _analyze(tmp_path / "plasma", _diann(), normalisation="none")
+    plain = _analyze(tmp_path / "plain", parsed_result(), normalization=None)
+    plasma = _analyze(tmp_path / "plasma", _diann(), normalization="none")
 
-    assert "abundance_normalisation" not in _general(plain, "Intensity")
-    assert _general(plasma, "Precursor_Quantity")["abundance_normalisation"] == "none"
+    assert "abundance_normalization" not in _general(plain, "Intensity")
+    assert _general(plasma, "Precursor_Quantity")["abundance_normalization"] == "none"
 
 
 def test_cli_layer_x_is_the_modules_layer(tmp_path: Path) -> None:
     source = tmp_path / "source.parquet"
     module = tmp_path / "module.toml"
     target = tmp_path / "scored.parquet"
-    write_module(module, normalisation="none")
+    write_module(module, normalization="none")
     write_parsed_levels(_diann(), source)
 
     status = app(

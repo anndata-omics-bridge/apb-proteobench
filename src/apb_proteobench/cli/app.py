@@ -43,11 +43,11 @@ from apb_proteobench.cli.timings import write_tool_timings
 
 PRIMARY_LAYER_NAME = "X"
 """The ``--layer`` value that selects the module's layer: the APB primary layer stored in ``X``,
-or the layer the module's abundance normalisation selects."""
+or the layer the module's abundance normalization selects."""
 
 LAYER_HELP = (
     'Abundance layer to score; "X" is the module\'s layer: the APB primary layer, or the one '
-    "its abundance normalisation selects"
+    "its abundance normalization selects"
 )
 
 PROTEINS_HELP = (
@@ -309,7 +309,7 @@ def run_quant(
     and benchmarking when the scored level must be derived from a lower one. Use
     --level LEVEL to convert one quantification level. --layer NAME scores one abundance
     layer; the default "X" is the module's layer, the APB primary layer unless the module
-    sets abundance_normalisation.
+    sets abundance_normalization.
     --timings-dir records internal operation timings outside the scored result.
     """
     if options.params is None:
@@ -558,12 +558,12 @@ def _layer_names(
     """Name the scored layer; "X" is the configured level's primary layer.
 
     ``None`` leaves the choice to the analyzer: for a module that sets an abundance
-    normalisation, which selects its layer through apb-catalog, and for an absent level, which
+    normalization, which selects its layer through apb-catalog, and for an absent level, which
     the analyzer reports.
     """
     if layer != PRIMARY_LAYER_NAME:
         return (layer,)
-    if module.settings.general.abundance_normalisation is not None:
+    if module.settings.general.abundance_normalization is not None:
         return None
     level = parsed.levels.get(module.settings.general.level)
     return None if level is None else (level.primary_layer_name,)

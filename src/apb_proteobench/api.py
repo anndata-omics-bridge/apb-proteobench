@@ -71,7 +71,7 @@ class ProteoBenchAnalyzer:
         """Create a complete analyzer for one validated ProteoBench module.
 
         ``layers`` names the abundance layers to score; ``None`` scores every one, unless the
-        module sets ``abundance_normalisation``: then ``None`` scores the layer apb-catalog's
+        module sets ``abundance_normalization``: then ``None`` scores the layer apb-catalog's
         ``abundance`` set names for it, or the primary layer when the set names none.
         ``proteins`` picks which proteins decide species and contaminants: ``"matched"``, the
         FASTA proteins containing the peptide, or ``"vendor"``, the proteins the vendor reports,

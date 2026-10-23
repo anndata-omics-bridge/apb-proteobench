@@ -138,11 +138,11 @@ SPECIES_ORGANISMS = {
 
 
 def write_module(
-    path: Path, /, *, alias: bool = False, hy: bool = False, normalisation: str | None = None
+    path: Path, /, *, alias: bool = False, hy: bool = False, normalization: str | None = None
 ) -> None:
     """Write the small module as a module TOML and the SDRF it names beside it.
 
-    ``normalisation`` sets the module's ``abundance_normalisation``.
+    ``normalization`` sets the module's ``abundance_normalization``.
     """
     settings = module_settings(hy=hy)
     sdrf = path.with_suffix(".sdrf.tsv")
@@ -156,8 +156,8 @@ def write_module(
             ]
         )
     lines.extend(["[general]", 'level = "ion"', "min_count_multispec = 1"])
-    if normalisation is not None:
-        lines.append(f'abundance_normalisation = "{normalisation}"')
+    if normalization is not None:
+        lines.append(f'abundance_normalization = "{normalization}"')
     if alias:
         lines.append("[run_aliases]")
         lines.extend(

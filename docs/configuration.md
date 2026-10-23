@@ -45,7 +45,7 @@ The SDRF path is relative to the TOML's directory. APB2 reads it through `apb2.a
 - `level` selects the single APB2 quantification level to annotate and score.
 - `default_cutoff_min_feature` selects the aggregate projection shown at the top of the score.
 - `max_nr_observed` controls the complete cutoff-indexed score range.
-- `abundance_normalisation`, optional, APB only: `none` or `run_setting`. The module then scores the level's `intensity` layer with that normalisation, which apb-catalog's `abundance` set names per software, instead of the primary layer; where the set names none, the primary layer is scored and the level summary says so. `dia_plasma` sets `none`.
+- `abundance_normalization`, optional, APB only: `none` or `run_setting`. The module then scores the level's `intensity` layer with that normalization, which apb-catalog's `abundance` set names per software, instead of the primary layer; where the set names none, the primary layer is scored and the level summary says so. `dia_plasma` sets `none`.
 
 Unknown TOML sections, such as ProteoBench's `[reference_database]` and `[validation]`, are accepted. Only the resolved sample design and scoring fields are embedded in APB metadata. The packaged SDRFs pass the official `sdrf-pipelines` structural validation; APB itself does not validate SDRF structure or ontology terms.
 

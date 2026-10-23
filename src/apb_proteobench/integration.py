@@ -30,7 +30,7 @@ from apb_proteobench.workflow import ProteoBenchResult
 _STORAGE_KEY = "proteobench"
 _DIAGNOSTICS_PREFIX = f"{_STORAGE_KEY}:"
 ABUNDANCE_CATALOGUE = "abundance"
-"""The apb-catalog set saying what each abundance layer measures and whether it is normalised."""
+"""The apb-catalog set saying what each abundance layer measures and whether it is normalized."""
 
 type ProteinSource = Literal["matched", "vendor"]
 """Which proteins decide a feature's species and contaminants, both resolved by apb-fasta.
@@ -87,7 +87,7 @@ class ScoredLayerResult:
 
 @dataclass(frozen=True, slots=True)
 class ModuleLayer:
-    """The layer a module's abundance normalisation selects, and the catalogue's answer.
+    """The layer a module's abundance normalization selects, and the catalogue's answer.
 
     ``found`` is false when the catalogue has no such layer, or cannot say; the level's primary
     layer is then scored instead.
@@ -118,11 +118,11 @@ def submission_content(
     if not isinstance(source.matrix, np.ndarray):
         raise TypeError("APB2 layer extraction did not produce a dense matrix")
     design = align_runs(source.observations, configuration)
-    unset = configuration.general.abundance_normalisation is None
+    unset = configuration.general.abundance_normalization is None
     # A module without the setting hashes as it did before the setting existed.
     settings: dict[str, object] = configuration.model_dump(
         mode="json",
-        exclude={"samples": True, "general": {"abundance_normalisation"}} if unset else {"samples"},
+        exclude={"samples": True, "general": {"abundance_normalization"}} if unset else {"samples"},
     )
     settings["proteins"] = scored.proteins
     settings["source_revision"] = PROTEOBENCH_SOURCE_REVISION
@@ -176,21 +176,21 @@ def select_layers(
 
 
 def module_layer(parsed: ParsedLevels, configuration: ModuleSettings, /) -> ModuleLayer | None:
-    """Find the layer the module's abundance normalisation asks for; ``None`` if it asks none.
+    """Find the layer the module's abundance normalization asks for; ``None`` if it asks none.
 
-    That is the configured level's ``intensity`` layer with that normalisation in apb-catalog's
+    That is the configured level's ``intensity`` layer with that normalization in apb-catalog's
     ``abundance`` set. When the set has none, or cannot say, the level's primary layer stands
     in and the answer is marked not found. An ambiguous answer raises ``UnresolvedField``.
     """
-    normalisation = configuration.general.abundance_normalisation
-    if normalisation is None:
+    normalization = configuration.general.abundance_normalization
+    if normalization is None:
         return None
     level_name = configuration.general.level
     level = _configured_level(parsed, configuration)
     catalog = Catalog(parsed, ABUNDANCE_CATALOGUE)
     try:
         table = catalog.layer(
-            level_name, concept="abundance", kind="intensity", normalisation=normalisation
+            level_name, concept="abundance", kind="intensity", normalization=normalization
         )
     except UnresolvedField as error:
         if error.resolution.status != "unknown":
@@ -271,7 +271,7 @@ def persist_results(
 ) -> ParsedLevels:
     """Return a copy with every selected layer's diagnostics and scores attached.
 
-    ``chosen``, the layer a module's abundance normalisation selected, adds a summary entry
+    ``chosen``, the layer a module's abundance normalization selected, adds a summary entry
     that needs attention when the catalogue did not find it, and stores the catalogue's
     snapshot under ``metadata["catalog"]["abundance"]``.
     """
@@ -398,8 +398,8 @@ def _scoring_summary(result: ScoredLayerResult) -> list[JsonValue]:
 def _module_layer_summary(chosen: ModuleLayer) -> JsonValue:
     """Whether the catalogue found the module's layer; if not, the primary layer was scored."""
     return {
-        "name": "abundance_normalisation",
-        "label": "Layer with the module's abundance normalisation found",
+        "name": "abundance_normalization",
+        "label": "Layer with the module's abundance normalization found",
         "value": chosen.found,
         "unit": "found",
         "status": "ok" if chosen.found else "attention",

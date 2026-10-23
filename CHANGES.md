@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-10-22
+
+- **Breaking:** the module `[general]` key `abundance_normalisation` becomes `abundance_normalization`, and so does the level summary entry of that name, as apb-catalog's `abundance` qualifier becomes `normalization` (vocabulary 0.8). `ModuleGeneral` ignores unknown keys, so a TOML still spelling `abundance_normalisation` scores the primary layer without the summary entry. `dia_plasma` follows; its submission settings name the new key, so its ProteoBot `id` and `intermediate_hash` change. Results scored before keep the old entry until rescored.
+
 ## 2026-10-21
 
 - Module TOMLs take `[general] abundance_normalisation` (`none` or `run_setting`, APB only). The module then scores the level's `intensity` layer with that normalisation, which apb-catalog's `abundance` set names per software; where the set names none, or cannot say, the primary layer is scored and the level summary entry `abundance_normalisation` needs attention. The catalogue snapshot is stored under `metadata["catalog"]["abundance"]`. `--layer X` means the module's layer; a named `--layer` still overrides.

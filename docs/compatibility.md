@@ -20,14 +20,14 @@ Measured against the stored ProteoBench datapoints of 219 corpus submissions, `n
 
 ## The scored layer is chosen by the module or the caller
 
-`run` and `benchmark` score one abundance layer: `--layer NAME`, by default `X`, the module's layer. That is the APB2 rule's primary layer, unless the module sets `abundance_normalisation`; then it is the `intensity` layer with that normalisation in apb-catalog's `abundance` set. ProteoBench fixes the quantity column per module and tool, and its plasma module departs from its other DIA modules:
+`run` and `benchmark` score one abundance layer: `--layer NAME`, by default `X`, the module's layer. That is the APB2 rule's primary layer, unless the module sets `abundance_normalization`; then it is the `intensity` layer with that normalization in apb-catalog's `abundance` set. ProteoBench fixes the quantity column per module and tool, and its plasma module departs from its other DIA modules:
 
 | Tool | ProteoBench plasma | ProteoBench other DIA modules | APB primary (`X`) |
 | --- | --- | --- | --- |
 | DIA-NN | `Precursor.Quantity` | `Precursor.Normalised` | `Precursor_Normalised` |
 | Spectronaut | `FG.Quantity` | `EG.TotalQuantity (Settings)` | `FG_Quantity` |
 
-`dia_plasma` sets `abundance_normalisation = "none"`, so `X` scores DIA-NN's `Precursor_Quantity`, as ProteoBench does. The primary layer would differ by more than 50 % on DIA-NN 2.x plasma results, because DIA-NN's normalisation factors differ between the two conditions there. Where the catalogue names no un-normalised layer, such as for PEAKS, AlphaDIA and Spectronaut, the primary layer is scored and the level summary entry `abundance_normalisation` needs attention.
+`dia_plasma` sets `abundance_normalization = "none"`, so `X` scores DIA-NN's `Precursor_Quantity`, as ProteoBench does. The primary layer would differ by more than 50 % on DIA-NN 2.x plasma results, because DIA-NN's normalization factors differ between the two conditions there. Where the catalogue names no un-normalized layer, such as for PEAKS, AlphaDIA and Spectronaut, the primary layer is scored and the level summary entry `abundance_normalization` needs attention.
 
 ## Entrapment pairs come from the FASTA
 

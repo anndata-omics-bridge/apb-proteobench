@@ -51,7 +51,7 @@ named = ProteoBenchAnalyzer(module, layers=("LFQ_Intensity",)).analyze(parsed)
 
 APB2's `ParsedLevel.abundance_layers()` resolves `layers`: `None` keeps declared order and requires at least one layer with the abundance role; a named layer must exist and carry that role. Scoring provenance records the scored layer names under `layers`.
 
-A module that sets `abundance_normalisation`, such as `dia_plasma`, changes what `None` means: the analyzer scores the one `intensity` layer with that normalisation in apb-catalog's `abundance` set, or the primary layer when the set names none or cannot say, and records which in the level summary. A named `layers` tuple still scores exactly those layers.
+A module that sets `abundance_normalization`, such as `dia_plasma`, changes what `None` means: the analyzer scores the one `intensity` layer with that normalization in apb-catalog's `abundance` set, or the primary layer when the set names none or cannot say, and records which in the level summary. A named `layers` tuple still scores exactly those layers.
 
 ## Choose the proteins that decide
 
