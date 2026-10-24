@@ -126,7 +126,7 @@ def _precursors(
         if table is None:
             raise EntrapmentError(f"the catalogue offers kind {kind!r} but resolves no layer")
         best = level.var.frame.select(keys).hstack(
-            table.values.select(pl.min_horizontal(pl.all()).cast(pl.Float64).alias(kind))
+            table.wide().select(pl.min_horizontal(pl.all()).cast(pl.Float64).alias(kind))
         )
         frame = frame.join(best, on=keys, how="left", maintain_order="left")
     return frame, kinds

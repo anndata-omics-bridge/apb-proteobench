@@ -130,8 +130,11 @@ def test_annotation_rejects_quantification_and_module_subsets(tmp_path: Path) ->
     parser = ProteoBenchAnnotationParser.from_path(module)
     missing_quant = parsed_result()
     missing_quant.levels["ion"].obs.frame = missing_quant.levels["ion"].obs.frame.head(3)
-    layer = missing_quant.levels["ion"].layers["Intensity"]
-    layer.values = layer.values.select(layer.values.columns[:-1])
+    layers = missing_quant.levels["ion"].layers
+    wide = layers["Intensity"].wide()
+    layers["Intensity"] = FinalLayerTable.from_wide(
+        "Intensity", wide.select(wide.columns[:-1]), semantic_roles=("abundance",)
+    )
 
     with pytest.raises(ValueError, match="samples absent from quantification"):
         parser.parse(missing_quant)
@@ -203,8 +206,8 @@ def test_annotation_scoring_and_roundtrip_through_every_apb_format(
     for first, second in [(before.obs.frame, after.obs.frame), (before.var.frame, after.var.frame)]:
         assert first.equals(second) and first.schema == second.schema
     for name, matrix in before.layers.items():
-        assert matrix.values.equals(after.layers[name].values)
-        assert matrix.values.schema == after.layers[name].values.schema
+        assert matrix.wide().equals(after.layers[name].wide())
+        assert matrix.wide().schema == after.layers[name].wide().schema
     for name, table in before.varm.items():
         assert table.equals(after.varm[name])
     with pytest.raises(ValueError, match="annotation columns already present"):
@@ -242,13 +245,13 @@ def test_analyzer_records_its_protein_source(
 def _multi_layer_result() -> ParsedLevels:
     parsed = parsed_result()
     level = parsed.levels["ion"]
-    values = level.layers["Intensity"].values
-    level.layers["LFQ/Intensity"] = FinalLayerTable(
+    values = level.layers["Intensity"].wide()
+    level.layers["LFQ/Intensity"] = FinalLayerTable.from_wide(
         layer_name="LFQ/Intensity",
         values=(values.clone()).drop(("feature",), strict=False),
         semantic_roles=("abundance",),
     )
-    level.layers["QValue"] = FinalLayerTable(
+    level.layers["QValue"] = FinalLayerTable.from_wide(
         layer_name="QValue",
         values=(values.clone()).drop(("feature",), strict=False),
         semantic_roles=(),
