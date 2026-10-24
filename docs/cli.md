@@ -51,7 +51,7 @@ The main options are `--level LEVEL`, `--software`, `--strict`, `--backend`, `--
 apb-proteobench run entrapment DATA FASTA --params PATH --output RESULT [OPTIONS]
 ```
 
-`run entrapment` converts vendor inputs at the module's level, verifies peptides against FASTA, labels each precursor target or entrapment from the same FASTA, and scores ProteoBench's entrapment metrics: lower-bound, combined and paired FDP, their categories, and the FDP curve. apb-catalog's `proteobench_entrapment` set names the precursor q-values the result offers (`q_value`, `library_q_value`, `global_q_value`). A kind stored per run is scored from its best value across runs; one stored once per precursor, as DIA-NN's library and experiment-wide q-values are, from that value:
+`run entrapment` converts vendor inputs at the module's level, verifies peptides against FASTA, labels each precursor target or entrapment from the same FASTA, and scores ProteoBench's entrapment metrics: lower-bound, combined and paired FDP, their categories, and the FDP curve. apb-catalog's `proteobench_entrapment` set names the precursor q-values the result offers (`q_value`, `library_q_value`, `global_q_value`). A kind stored per run is scored from its best value across runs; one stored once per precursor, as DIA-NN's library and experiment-wide q-values and Spectronaut 21's library q-value are, from that value:
 
 ```bash
 apb-proteobench run entrapment report.parquet ProteoBenchFASTA_Entrapment_Human_with_contaminants_entrapment_pep.fasta \

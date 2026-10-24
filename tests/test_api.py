@@ -692,7 +692,7 @@ def test_cli_exposes_only_complete_workflows() -> None:
                 "Abundance layer to score",
                 "Proteins deciding species and contaminants",
                 "Write result_performance.csv and sibling",
-                "Promote APB2 layer-contract warnings to errors",
+                "Make an effectively empty layer an error",
                 "Report detailed conversion and scoring",
             ),
         ),
@@ -704,7 +704,7 @@ def test_cli_exposes_only_complete_workflows() -> None:
                 "Vendor search-parameter file",
                 "Packaged entrapment module name",
                 "FASTA peptide-matching backend",
-                "Promote APB2 layer-contract warnings to errors",
+                "Make an effectively empty layer an error",
             ),
         ),
         (

@@ -112,7 +112,7 @@ class RunCliOptions:
     ] = None
     strict: Annotated[
         bool,
-        Parameter(negative=False, help="Promote APB2 layer-contract warnings to errors"),
+        Parameter(negative=False, help="Make an effectively empty layer an error, not left out"),
     ] = False
 
 
@@ -153,7 +153,7 @@ class EntrapmentCliOptions:
     ] = None
     strict: Annotated[
         bool,
-        Parameter(negative=False, help="Promote APB2 layer-contract warnings to errors"),
+        Parameter(negative=False, help="Make an effectively empty layer an error, not left out"),
     ] = False
 
 

@@ -120,4 +120,4 @@ result = EntrapmentAnalyzer(module, fasta).analyze(fasta.verify_peptides(parsed)
 print(result.scores["q_value"].paired_FDP)
 ```
 
-`analyze()` labels every precursor, scores each q-value kind the result offers, and returns a new APB2 result with the labels in `varm`. It does not perform physical I/O.
+`analyze()` labels every precursor, scores each q-value kind the result offers, per run from layers and per precursor from var, and returns a new APB2 result with the labels in `varm`. It does not perform physical I/O.

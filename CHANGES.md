@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-10-23
+
+- Entrapment scoring takes q-value kinds from both `catalog.layer` and `catalog.var`: a kind stored per run is scored from its best value across runs, one stored per precursor (DIA-NN's library and global q-values, Spectronaut 21's library q-value) from that value.
+
 ## 2026-10-22
 
 - **Breaking:** the module `[general]` key `abundance_normalisation` becomes `abundance_normalization`, and so does the level summary entry of that name, as apb-catalog's `abundance` qualifier becomes `normalization` (vocabulary 0.8). `ModuleGeneral` ignores unknown keys, so a TOML still spelling `abundance_normalisation` scores the primary layer without the summary entry. `dia_plasma` follows; its submission settings name the new key, so its ProteoBot `id` and `intermediate_hash` change. Results scored before keep the old entry until rescored.
