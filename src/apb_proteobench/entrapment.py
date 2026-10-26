@@ -10,7 +10,7 @@ from typing import cast
 
 import polars as pl
 from apb2.api import JsonValue, ParsedLevels
-from apb_catalog.api import Catalog, attach_snapshot
+from apb_catalog.api import DataCatalog, attach_snapshot
 from apb_fasta.api import FastaAnnotator
 
 from apb_proteobench.annotation import PROTEOBENCH_SCHEMA_VERSION
@@ -71,7 +71,7 @@ class EntrapmentAnalyzer:
     def analyze(self, parsed: ParsedLevels) -> EntrapmentAnalysisResult:
         """Label precursors and score every q-value kind the result offers, without I/O."""
         settings = self._configuration
-        catalog = Catalog(parsed, CATALOGUE)
+        catalog = DataCatalog(parsed, CATALOGUE)
         precursors, kinds = _precursors(parsed, settings.level, catalog)
         labelled = label_precursors(
             precursors, self._pairs, max_missing_fraction=settings.max_missing_fraction
@@ -93,15 +93,15 @@ class EntrapmentAnalyzer:
 
 
 def _precursors(
-    parsed: ParsedLevels, level_name: QuantificationLevel, catalog: Catalog
+    parsed: ParsedLevels, level_name: QuantificationLevel, catalog: DataCatalog
 ) -> tuple[pl.DataFrame, tuple[str, ...]]:
     """Return one row per precursor with its q-value for each kind.
 
     A kind stored per run, as a layer, takes its best value across runs; one stored once per
     precursor, in ``var``, is that value.
     """
-    per_run = catalog.layer(level_name, concept="confidence") or ()
-    per_precursor = catalog.var(level_name, concept="confidence") or ()
+    per_run = catalog.kinds(level_name, "layers")
+    per_precursor = catalog.kinds(level_name, "var")
     kinds = tuple(sorted({*per_run, *per_precursor}))
     if not kinds:
         raise EntrapmentError(
@@ -117,12 +117,12 @@ def _precursors(
     )
     for kind in kinds:
         if kind not in per_run:
-            column = catalog.var(level_name, concept="confidence", kind=kind)
+            column = catalog.var(level_name, kind=kind)
             if column is None:
                 raise EntrapmentError(f"the catalogue offers kind {kind!r} but resolves no column")
             frame = frame.with_columns(column.cast(pl.Float64).alias(kind))
             continue
-        table = catalog.layer(level_name, concept="confidence", kind=kind)
+        table = catalog.layer(level_name, kind=kind)
         if table is None:
             raise EntrapmentError(f"the catalogue offers kind {kind!r} but resolves no layer")
         best = level.var.frame.select(keys).hstack(

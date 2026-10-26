@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 from apb2.api import JsonValue, ParsedLevel, ParsedLevels
-from apb_catalog.api import Catalog, ResolutionSnapshot, UnresolvedField, attach_snapshot
+from apb_catalog.api import DataCatalog, ResolutionSnapshot, UnresolvedField, attach_snapshot
 from numpy.typing import NDArray
 
 from apb_proteobench.annotation import PROTEOBENCH_SCHEMA_VERSION
@@ -187,11 +187,9 @@ def module_layer(parsed: ParsedLevels, configuration: ModuleSettings, /) -> Modu
         return None
     level_name = configuration.general.level
     level = _configured_level(parsed, configuration)
-    catalog = Catalog(parsed, ABUNDANCE_CATALOGUE)
+    catalog = DataCatalog(parsed, ABUNDANCE_CATALOGUE)
     try:
-        table = catalog.layer(
-            level_name, concept="abundance", kind="intensity", normalization=normalization
-        )
+        table = catalog.layer(level_name, kind="intensity", normalization=normalization)
     except UnresolvedField as error:
         if error.resolution.status != "unknown":
             raise
