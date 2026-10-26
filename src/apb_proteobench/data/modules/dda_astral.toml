@@ -19,7 +19,7 @@ color = "#ddcc77"
 
 [general]
 "min_count_multispec" = 1
-"level" = "ion"
+"level" = "peptidoform_ion"
 
 [reference_database]
 # Reference protein database used to validate uploaded protein identifiers.

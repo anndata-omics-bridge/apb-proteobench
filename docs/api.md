@@ -44,7 +44,7 @@ from apb_proteobench.api import ProteoBenchAnalyzer
 
 every = ProteoBenchAnalyzer(module).analyze(parsed)
 primary = ProteoBenchAnalyzer(
-    module, layers=(parsed.levels["ion"].primary_layer_name,)
+    module, layers=(parsed.levels["peptidoform_ion"].primary_layer_name,)
 ).analyze(parsed)
 named = ProteoBenchAnalyzer(module, layers=("LFQ_Intensity",)).analyze(parsed)
 ```
@@ -90,7 +90,7 @@ from apb_proteobench.api import ProteoBenchAnalyzer, load_module
 compiler = ParseRuleCompiler.detect(
     Path("report.tsv"),
     Path("search-parameters.txt"),
-    requested_levels=("ion",),
+    requested_levels=("peptidoform_ion",),
     software="spectronaut",
 )
 parsed = compiler.compile().parse()

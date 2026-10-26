@@ -21,11 +21,11 @@ from conftest import parsed_result, write_module
 
 
 def _rule_json(rule: str) -> str:
-    return packaged_rule_declarations()[(rule, "ion")][0]
+    return packaged_rule_declarations()[(rule, "peptidoform_ion")][0]
 
 
 def _diann() -> ParsedLevels:
-    """DIA-NN 1.8's ion level: normalized quantity primary, un-normalized beside it."""
+    """DIA-NN 1.8's peptidoform-ion level: normalized quantity primary, un-normalized beside it."""
     return parsed_result(
         ("Precursor_Normalised", "Precursor_Quantity"), _rule_json("diann/v1_8/rules.json")
     )
@@ -47,7 +47,7 @@ def _analyze(
 
 def _entry(result: ProteoBenchAnalysisResult) -> dict[str, JsonValue] | None:
     """The level summary entry for the module's abundance normalization, if written."""
-    tool = result.parsed.levels["ion"].metadata["proteobench"]
+    tool = result.parsed.levels["peptidoform_ion"].metadata["proteobench"]
     assert isinstance(tool, dict)
     summary = tool["summary"]
     assert isinstance(summary, list)
@@ -125,4 +125,7 @@ def test_cli_layer_x_is_the_modules_layer(tmp_path: Path) -> None:
     )
 
     assert status == 0
-    assert "proteobench:Precursor_Quantity" in read_parsed_levels(target).levels["ion"].varm
+    assert (
+        "proteobench:Precursor_Quantity"
+        in read_parsed_levels(target).levels["peptidoform_ion"].varm
+    )

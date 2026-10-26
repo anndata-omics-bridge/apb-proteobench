@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-QuantificationLevel = Literal["ion", "peptidoform"]
+QuantificationLevel = Literal["peptidoform_ion", "peptidoform"]
 AbundanceNormalization = Literal["none", "run_setting"]
 """apb-catalog's ``normalization`` values for an ``abundance`` layer."""
 

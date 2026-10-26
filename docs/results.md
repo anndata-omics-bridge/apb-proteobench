@@ -49,7 +49,7 @@ from pathlib import Path
 from apb2.api import read_parsed_levels
 
 parsed = read_parsed_levels(Path("results/scored.h5mu"))
-level = parsed.levels["ion"]
+level = parsed.levels["peptidoform_ion"]
 
 diagnostics = level.varm["proteobench:Intensity"]
 score_record = level.metadata["proteobench"]

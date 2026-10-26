@@ -580,9 +580,9 @@ def _export_result_performance(
     if len(result.layers) != 1:
         raise ValueError("result-performance export requires exactly one selected layer")
     selected = next(iter(result.layers.values()))
-    if selected.level_name != "ion":
+    if selected.level_name != "peptidoform_ion":
         raise ValueError(
-            "result-performance export currently supports only the ion level; "
+            "result-performance export currently supports only the peptidoform_ion level; "
             f"got {selected.level_name!r}"
         )
     datapoint = _proteobot_datapoint(result, search_parameters, selected.layer_name)

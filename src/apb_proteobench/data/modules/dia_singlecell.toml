@@ -14,7 +14,7 @@ color = "#ddcc77"
 
 [general]
 "min_count_multispec" = 1
-"level" = "ion"
+"level" = "peptidoform_ion"
 
 # Further run names that vendor tables report, keyed by SDRF comment[data file].
 [run_aliases]

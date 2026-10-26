@@ -12,7 +12,7 @@ color = "#ddcc77"
 
 [general]
 min_count_multispec = 1
-level = "ion"
+level = "peptidoform_ion"
 
 [run_aliases]
 "HY_A_r1.raw" = ["HY_A_r1_uncalibrated"]

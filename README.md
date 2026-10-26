@@ -23,7 +23,7 @@ apb-proteobench run quant report.tsv proteins.fasta \
     --params search-parameters.txt \
     --module module_settings.toml \
     --software spectronaut \
-    --level ion \
+    --level peptidoform_ion \
     --output results/scored.h5ad
 ```
 
@@ -34,7 +34,7 @@ The equivalent reusable workflow calls the existing tools directly:
 ```bash
 apb2 convert report.tsv --params search-parameters.txt --software spectronaut --output results/all
 apb-fasta verify-peptides results/all.h5mu proteins.fasta --output results/fasta-checked.h5mu
-apb-aggregate ion protein sum results/fasta-checked.h5mu results/aggregated.h5mu
+apb-aggregate peptidoform_ion protein sum results/fasta-checked.h5mu results/aggregated.h5mu
 apb-proteobench benchmark results/aggregated.h5mu module_settings.toml results/scored.h5mu
 ```
 
@@ -44,7 +44,7 @@ APB ProteoBench declares `apb2`, `apb-fasta` and `apb-catalog`, and reaches aggr
 
 The CLI intentionally exposes only `run` and `benchmark`; APB2 owns conversion and persistence, while the Python API exposes in-memory ProteoBench analysis over canonical `ParsedLevels`. `benchmark` combines annotation and scoring for an existing APB2 result. Scoring uses one abundance layer: `--layer NAME`, by default `X`, the APB primary layer projected to AnnData `X`; a module that sets `abundance_normalization`, such as `dia_plasma`, makes `X` the layer apb-catalog's `abundance` set names for it. Per-layer diagnostics live in `varm["proteobench:<layer-name>"]`, while selection provenance and layer-keyed scores live in `metadata["proteobench"]`. See the [documentation](https://anndata-omics-bridge.github.io/apb-proteobench/).
 
-To feed the existing pMultiQC ProteoBench module and retain the matching ProteoBot result, add `--result-performance reports/result_performance.csv` to `run` or `benchmark`. The option publishes two staged files in the same directory: `result_performance.csv` plus `<intermediate_hash>.json` in the schema and naming convention used by `Proteobench/Results_quant_ion_DDA`. Each file is published atomically without overwrite, and a failed publication rolls back any file added by the same call. This export writes the scored layer, supports only an ion level, and refuses either existing target. Its SHA-256 submission hash is computed only during this export from the selected layer and scoring inputs. The new identity does not match historical SHA-1 uploads.
+To feed the existing pMultiQC ProteoBench module and retain the matching ProteoBot result, add `--result-performance reports/result_performance.csv` to `run` or `benchmark`. The option publishes two staged files in the same directory: `result_performance.csv` plus `<intermediate_hash>.json` in the schema and naming convention used by `Proteobench/Results_quant_ion_DDA`. Each file is published atomically without overwrite, and a failed publication rolls back any file added by the same call. This export writes the scored layer, supports only a peptidoform_ion level, and refuses either existing target. Its SHA-256 submission hash is computed only during this export from the selected layer and scoring inputs. The new identity does not match historical SHA-1 uploads.
 
 For optional operation-level timing files, pass `--timings-dir DIR` to `run`. It writes separate JSON files for APB2 conversion, FASTA verification, and ProteoBench benchmarking without changing the scored result or Studio's process-level runtime measurement.
 

@@ -18,15 +18,15 @@ from apb_proteobench.configuration.load import (
 )
 
 EXPECTED_SUPPORTED_MODULE_HASHES = {
-    "dda_astral": "f556f0aa761eca058300eb0874cd764e076015cf81030f1194dbaf966195cd7d",
+    "dda_astral": "eb371b29702022d747ab781c0b4bfb32578a43206d270a905a614398ffbe2718",
     "dda_peptidoform": "f27fcdb89d53a06722282720fd16c89f627d9967036bb551dccc1f9a2cacce22",
-    "dda_qexactive": "80fde2bd093de08b16e11bf1cdf74d32626573e7c752184de544c1ea0dfa251e",
-    "dia_aif": "984dfa21f80fa4631bd6cbe120c662636014a7570f51ff0b36d92be322de51ae",
-    "dia_astral": "35bf718c54b964c40b3b4ff2e352bc82e9fd492fdd1c6d4da9d51cd588475568",
-    "dia_diapasef": "6072039f558cc979d41d2ca29c8134cab89a1b2eba1cd0171387464cca19d103",
-    "dia_plasma": "cd79d7e827f0bc6bc29f0c254847203618826f43dd924aaec2deb40e3f9ee61b",
-    "dia_singlecell": "de1f4e132aa5bd6ef7ed9538225a70fe8e69aac9ee2d7e2031b3a6dfac661eff",
-    "dia_zenotof": "b8daad3330a1b93b8f8ba24b4c081c17a77a9aaab4a3ca5b8ad2e17e8c6d525b",
+    "dda_qexactive": "e7691630bf512306eecb88acc97e4408947e2274bec8ef3fd09bf8fbcb34b9b6",
+    "dia_aif": "2a53c0e01b463187ba638b8466bcb683ca79e5490704d5a4df61fdd07ded65f6",
+    "dia_astral": "6414f874ecae9295623737c69573e2028cf5e0da63440a1356a9d0f1bba290bb",
+    "dia_diapasef": "b80ee20aca19feead439e8af251717de2754f8875504728ceea44aac785bf8e8",
+    "dia_plasma": "6fb4993be804e49bfe74b2aee56cc4e11bdda14235fe259393d6f675a7577c55",
+    "dia_singlecell": "b70039c579fab5d0c054017d0294e7ac1da0a3cddf2c85c6de5dda66d759e639",
+    "dia_zenotof": "71ace09125a534fe1d1ef6e09f4a15bffce96de9d50ebf9c9af15dcb56388f13",
 }
 
 EXPECTED_SDRF_HASHES = {
@@ -44,7 +44,7 @@ EXPECTED_SDRF_HASHES = {
 EXPECTED_PACKAGED_MODULE_HASHES = {
     **EXPECTED_SUPPORTED_MODULE_HASHES,
     "denovo_dda_hcd": "d53cd86c02228c57cc35aba996e44c4739ce49e4de8fe57bf556a266d18460b7",
-    "entrapment_dia_astral": ("c6740cd8f2954b9b137bc870437331c53eb92c09a0e53650a30884cd79692db1"),
+    "entrapment_dia_astral": ("6cdfa2aea68370b59dd18cd57b41621da5b6391867f0ec502ab6418981032a32"),
 }
 
 
@@ -60,7 +60,7 @@ def test_every_supported_module_is_packaged_validated_and_pinned() -> None:
         EXPECTED_SDRF_HASHES
     )
     assert {module.settings.general.level for module in loaded.values()} == {
-        "ion",
+        "peptidoform_ion",
         "peptidoform",
     }
     assert all(

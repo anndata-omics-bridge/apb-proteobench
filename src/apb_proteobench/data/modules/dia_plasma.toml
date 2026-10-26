@@ -21,7 +21,7 @@ color = "green"
 
 [general]
 "min_count_multispec" = 1
-"level" = "ion"
+"level" = "peptidoform_ion"
 "max_nr_observed" = 12
 # APB only: score the un-normalized intensity, as upstream scores DIA-NN's Precursor.Quantity;
 # apb-catalog's abundance set names it per software, else the primary layer is scored.

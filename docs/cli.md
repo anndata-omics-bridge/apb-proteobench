@@ -20,7 +20,7 @@ Both commands also accept `--result-performance PATH`. This option writes two io
 
 `--scores PATH` writes that datapoint alone, at any level: the search-parameter fields ProteoBench records plus the scores, including `results` per cutoff, in the layout of the upstream datapoints, so APB scores and ProteoBench's can be compared field by field. It requires exactly one scored layer.
 
-The supplied path must be named exactly `result_performance.csv`. Neither it nor the derived hash-named JSON may already exist; both files are staged before their final paths are created without overwrite, and the CSV has no DataFrame index. The export writes the one scored layer, which must be at the ion level.
+The supplied path must be named exactly `result_performance.csv`. Neither it nor the derived hash-named JSON may already exist; both files are staged before their final paths are created without overwrite, and the CSV has no DataFrame index. The export writes the one scored layer, which must be at the peptidoform_ion level.
 
 ## `apb-proteobench run quant`
 
@@ -35,7 +35,7 @@ apb-proteobench run quant report.tsv human.fasta contaminants.fasta \
     --params search-parameters.txt \
     --module module_settings.toml \
     --software spectronaut \
-    --level ion \
+    --level peptidoform_ion \
     --output results/scored.h5ad \
     --result-performance reports/result_performance.csv \
     --verbose

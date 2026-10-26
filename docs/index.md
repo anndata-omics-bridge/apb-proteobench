@@ -43,7 +43,7 @@ Or retain each boundary as an artifact:
 ```bash
 apb2 convert report.tsv --params search-parameters.txt --output results/all
 apb-fasta verify-peptides results/all.h5mu proteins.fasta --output results/checked.h5mu
-apb-aggregate ion protein sum results/checked.h5mu results/aggregated.h5mu
+apb-aggregate peptidoform_ion protein sum results/checked.h5mu results/aggregated.h5mu
 apb-proteobench benchmark results/aggregated.h5mu module_settings.toml results/scored.h5mu
 ```
 

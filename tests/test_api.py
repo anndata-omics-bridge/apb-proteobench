@@ -63,7 +63,7 @@ def test_annotation_requires_exact_coverage_and_embeds_complete_configuration(
 
     result = ProteoBenchAnnotationParser.from_path(module).parse(parsed).annotate()
 
-    level = result.levels["ion"]
+    level = result.levels["peptidoform_ion"]
     assert level.obs.frame.columns == ["Run", "sample_name", "condition"]
     assert level.obs.frame.get_column("sample_name").to_list() == ["A1", "A2", "B1", "B2"]
     record = _object(result.metadata["proteobench"])
@@ -75,21 +75,21 @@ def test_annotation_requires_exact_coverage_and_embeds_complete_configuration(
     configuration = _object(details["configuration"])
     general = _object(configuration["general"])
     assert source["sha256"]
-    assert general["level"] == "ion"
-    assert parsed.levels["ion"].obs.frame.columns == ["Run"]
+    assert general["level"] == "peptidoform_ion"
+    assert parsed.levels["peptidoform_ion"].obs.frame.columns == ["Run"]
 
 
 def test_annotation_accepts_module_sample_names_as_identifiers(tmp_path: Path) -> None:
     module = tmp_path / "module.toml"
     write_module(module)
     parsed = parsed_result()
-    parsed.levels["ion"].obs.frame = parsed.levels["ion"].obs.frame.with_columns(
-        pl.Series("Run", ["A1", "A2", "B1", "B2"])
-    )
+    parsed.levels["peptidoform_ion"].obs.frame = parsed.levels[
+        "peptidoform_ion"
+    ].obs.frame.with_columns(pl.Series("Run", ["A1", "A2", "B1", "B2"]))
 
     result = ProteoBenchAnnotationParser.from_path(module).parse(parsed).annotate()
 
-    level = result.levels["ion"]
+    level = result.levels["peptidoform_ion"]
     assert level.obs.frame.get_column("condition").to_list() == ["A", "A", "B", "B"]
     assert level.obs.frame.get_column("sample_name").to_list() == ["A1", "A2", "B1", "B2"]
 
@@ -106,7 +106,7 @@ def test_annotation_preserves_root_annotation_tables_and_relations(tmp_path: Pat
                 {
                     "source": ["members"],
                     "row": [0],
-                    "target": ["ion"],
+                    "target": ["peptidoform_ion"],
                     "column": [0],
                     "value": [1.0],
                 }
@@ -129,8 +129,10 @@ def test_annotation_rejects_quantification_and_module_subsets(tmp_path: Path) ->
     write_module(module)
     parser = ProteoBenchAnnotationParser.from_path(module)
     missing_quant = parsed_result()
-    missing_quant.levels["ion"].obs.frame = missing_quant.levels["ion"].obs.frame.head(3)
-    layers = missing_quant.levels["ion"].layers
+    missing_quant.levels["peptidoform_ion"].obs.frame = missing_quant.levels[
+        "peptidoform_ion"
+    ].obs.frame.head(3)
+    layers = missing_quant.levels["peptidoform_ion"].layers
     wide = layers["Intensity"].wide()
     layers["Intensity"] = FinalLayerTable.from_wide(
         "Intensity", wide.select(wide.columns[:-1]), semantic_roles=("abundance",)
@@ -170,16 +172,16 @@ def test_annotation_scoring_and_roundtrip_through_every_apb_format(
     restored = read_parsed_levels(scored)
 
     assert result.layers["Intensity"].analysis.scores.nr_feature == 3
-    assert restored.levels["ion"].varm["proteobench:Intensity"].height == 6
-    stored = restored.levels["ion"].metadata["proteobench"]
+    assert restored.levels["peptidoform_ion"].varm["proteobench:Intensity"].height == 6
+    stored = restored.levels["peptidoform_ion"].metadata["proteobench"]
     assert isinstance(stored, dict)
     provenance = _object(_object(restored.metadata["proteobench"])["provenance"])
     assert _object(restored.metadata["proteobench"])["schema_version"] == "4"
     assert "schema_version" not in _object(provenance["scoring"])
     assert set(provenance) == {"annotation", "scoring"}
     assert (
-        _object(restored.levels["ion"].metadata["prolfquapp"])["result"]
-        == _object(baseline.levels["ion"].metadata["prolfquapp"])["result"]
+        _object(restored.levels["peptidoform_ion"].metadata["prolfquapp"])["result"]
+        == _object(baseline.levels["peptidoform_ion"].metadata["prolfquapp"])["result"]
     )
     assert set(stored) == {"result", "summary", "details"}
     assert stored["details"] == [{"slot": "varm", "name": "proteobench:Intensity"}]
@@ -201,7 +203,7 @@ def test_annotation_scoring_and_roundtrip_through_every_apb_format(
         provenance["annotation"]
         == _object(_object(baseline.metadata["proteobench"])["provenance"])["annotation"]
     )
-    before, after = baseline.levels["ion"], restored.levels["ion"]
+    before, after = baseline.levels["peptidoform_ion"], restored.levels["peptidoform_ion"]
     assert before.uns == after.uns
     for first, second in [(before.obs.frame, after.obs.frame), (before.var.frame, after.var.frame)]:
         assert first.equals(second) and first.schema == second.schema
@@ -222,8 +224,8 @@ def test_analyzer_annotates_and_scores_without_physical_io(tmp_path: Path) -> No
     result = ProteoBenchAnalyzer(load_module(module)).analyze(parsed_result())
 
     assert result.layers["Intensity"].analysis.scores.nr_feature == 3
-    assert "sample_name" in result.parsed.levels["ion"].obs.frame
-    assert "proteobench:Intensity" in result.parsed.levels["ion"].varm
+    assert "sample_name" in result.parsed.levels["peptidoform_ion"].obs.frame
+    assert "proteobench:Intensity" in result.parsed.levels["peptidoform_ion"].varm
     assert not target.exists()
 
 
@@ -244,7 +246,7 @@ def test_analyzer_records_its_protein_source(
 
 def _multi_layer_result() -> ParsedLevels:
     parsed = parsed_result()
-    level = parsed.levels["ion"]
+    level = parsed.levels["peptidoform_ion"]
     values = level.layers["Intensity"].wide()
     level.layers["LFQ/Intensity"] = FinalLayerTable.from_wide(
         layer_name="LFQ/Intensity",
@@ -279,12 +281,12 @@ def test_default_selection_scores_every_abundance_layer(tmp_path: Path) -> None:
 
     restored = read_parsed_levels(target)
     assert list(result.layers) == ["Intensity", "LFQ/Intensity"]
-    assert set(restored.levels["ion"].varm) == {
+    assert set(restored.levels["peptidoform_ion"].varm) == {
         "fasta_validation",
         "proteobench:Intensity",
         "proteobench:LFQ/Intensity",
     }
-    record = _object(restored.levels["ion"].metadata["proteobench"])
+    record = _object(restored.levels["peptidoform_ion"].metadata["proteobench"])
     provenance = _object(
         _object(_object(restored.metadata["proteobench"])["provenance"])["scoring"]
     )
@@ -301,8 +303,11 @@ def test_primary_selection_scores_only_x_layer(tmp_path: Path) -> None:
 
     restored = read_parsed_levels(target)
     assert list(result.layers) == ["Intensity"]
-    assert set(restored.levels["ion"].varm) == {"fasta_validation", "proteobench:Intensity"}
-    record = _object(restored.levels["ion"].metadata["proteobench"])
+    assert set(restored.levels["peptidoform_ion"].varm) == {
+        "fasta_validation",
+        "proteobench:Intensity",
+    }
+    record = _object(restored.levels["peptidoform_ion"].metadata["proteobench"])
     provenance = _object(
         _object(_object(restored.metadata["proteobench"])["provenance"])["scoring"]
     )
@@ -322,8 +327,11 @@ def test_named_selection_scores_one_abundance_layer(tmp_path: Path) -> None:
 
     restored = read_parsed_levels(target)
     assert list(result.layers) == ["LFQ/Intensity"]
-    assert set(restored.levels["ion"].varm) == {"fasta_validation", "proteobench:LFQ/Intensity"}
-    record = _object(restored.levels["ion"].metadata["proteobench"])
+    assert set(restored.levels["peptidoform_ion"].varm) == {
+        "fasta_validation",
+        "proteobench:LFQ/Intensity",
+    }
+    record = _object(restored.levels["peptidoform_ion"].metadata["proteobench"])
     provenance = _object(
         _object(_object(restored.metadata["proteobench"])["provenance"])["scoring"]
     )
@@ -347,12 +355,12 @@ def test_all_abundance_layers_round_trip_in_declared_order(
 
     restored = read_parsed_levels(target)
     assert list(result.layers) == ["Intensity", "LFQ/Intensity"]
-    assert list(restored.levels["ion"].varm) == [
+    assert list(restored.levels["peptidoform_ion"].varm) == [
         "fasta_validation",
         "proteobench:Intensity",
         "proteobench:LFQ/Intensity",
     ]
-    record = _object(restored.levels["ion"].metadata["proteobench"])
+    record = _object(restored.levels["peptidoform_ion"].metadata["proteobench"])
     layer_records = _object(_object(record["result"])["scoring"])
     assert list(layer_records) == ["Intensity", "LFQ%2FIntensity"]
     assert [_object(value)["layer_name"] for value in layer_records.values()] == [
@@ -377,7 +385,7 @@ def test_named_selection_rejects_layers_without_abundance_role(
 
 def test_all_abundance_layers_reject_missing_roles(tmp_path: Path) -> None:
     parsed = _multi_layer_result()
-    for layer in parsed.levels["ion"].layers.values():
+    for layer in parsed.levels["peptidoform_ion"].layers.values():
         layer.semantic_roles = ()
     with pytest.raises(ValueError, match="abundance role"):
         _analyze_result(tmp_path, parsed, layers=None)
@@ -503,8 +511,10 @@ def test_multi_layer_failure_mutates_no_input_or_target(tmp_path: Path) -> None:
 
     assert not target.exists()
     assert "proteobench" not in parsed.metadata
-    assert "proteobench" not in parsed.levels["ion"].metadata
-    assert not any(name.startswith("proteobench:") for name in parsed.levels["ion"].varm)
+    assert "proteobench" not in parsed.levels["peptidoform_ion"].metadata
+    assert not any(
+        name.startswith("proteobench:") for name in parsed.levels["peptidoform_ion"].varm
+    )
 
 
 def test_cli_benchmark_exports_and_reports_verbose_summary(tmp_path: Path) -> None:
@@ -550,7 +560,7 @@ def test_cli_benchmark_exports_and_reports_verbose_summary(tmp_path: Path) -> No
     assert "species=['YEAST', 'ECOLI', 'HUMAN']" in rendered
     assert "features total=6 included=3 excluded=3" in rendered
     assert "varm['proteobench:Intensity']" in rendered
-    assert "level=ion layer=Intensity" in rendered
+    assert "level=peptidoform_ion layer=Intensity" in rendered
 
 
 @pytest.mark.parametrize(
@@ -583,8 +593,14 @@ def test_cli_scores_one_layer_and_defaults_to_x(
         logger.remove(sink)
 
     assert status == 0
-    assert list(read_parsed_levels(target).levels["ion"].varm) == ["fasta_validation", *expected]
-    assert f"scored level=ion layer={expected[0].removeprefix('proteobench:')}" in "".join(messages)
+    assert list(read_parsed_levels(target).levels["peptidoform_ion"].varm) == [
+        "fasta_validation",
+        *expected,
+    ]
+    assert (
+        f"scored level=peptidoform_ion layer={expected[0].removeprefix('proteobench:')}"
+        in "".join(messages)
+    )
 
 
 def test_cli_benchmark_takes_vendor_proteins(tmp_path: Path) -> None:
@@ -607,7 +623,7 @@ def test_cli_benchmark_takes_vendor_proteins(tmp_path: Path) -> None:
 
 def test_cli_rejects_result_performance_for_non_ion_level(tmp_path: Path) -> None:
     parsed = parsed_result()
-    level = parsed.levels.pop("ion")
+    level = parsed.levels.pop("peptidoform_ion")
     level.uns["quantification_level"] = "peptidoform"
     parsed.levels["peptidoform"] = level
     source = tmp_path / "source.parquet"
@@ -616,7 +632,9 @@ def test_cli_rejects_result_performance_for_non_ion_level(tmp_path: Path) -> Non
     export = tmp_path / "result_performance.csv"
     write_module(module)
     module.write_text(
-        module.read_text(encoding="utf-8").replace('level = "ion"', 'level = "peptidoform"'),
+        module.read_text(encoding="utf-8").replace(
+            'level = "peptidoform_ion"', 'level = "peptidoform"'
+        ),
         encoding="utf-8",
     )
     write_parsed_levels(parsed, source)

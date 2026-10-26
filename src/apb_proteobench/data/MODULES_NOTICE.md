@@ -26,4 +26,6 @@ On 2026-10-02 the eight supported documents were reshaped for APB: their `[[samp
 
 On 2026-10-21 `dia_plasma` gained the APB-only `[general]` key `abundance_normalization = "none"`: upstream scores DIA-NN's un-normalized `Precursor.Quantity` in this module, and APB finds each software's un-normalized layer through apb-catalog's `abundance` set instead of a layer name per software.
 
+On 2026-10-26 every module's `[general]` `level = "ion"` became `"peptidoform_ion"`, APB2's name for that level; upstream keeps `ion`.
+
 Upstream project: <https://github.com/Proteobench/ProteoBench>

@@ -45,7 +45,7 @@ def module_settings(*, hy: bool = False) -> ModuleSettings:
     return ModuleSettings(
         species_expected_ratio=ratios,
         species_mapper=mapper,
-        general=ModuleGeneral(min_count_multispec=1, level="ion"),
+        general=ModuleGeneral(min_count_multispec=1, level="peptidoform_ion"),
         samples=[
             SampleSettings(raw_file="run_A1", sample_name="A1", condition="A"),
             SampleSettings(raw_file="run_A2", sample_name="A2", condition="A"),
@@ -81,7 +81,7 @@ def quantitative_input(*, hy: bool = False) -> QuantitativeLevelInput:
         ),
         contaminants=np.array([False, False, False, True, False, False]),
         decoys=np.zeros(6, dtype=np.bool_),
-        level="ion",
+        level="peptidoform_ion",
     )
 
 
@@ -97,7 +97,7 @@ def parsed_result(
     features = inputs.feature_ids.astype(str).tolist()
     proteins = inputs.reported_proteins.astype(str).tolist()
     matrix = matrix_values()
-    uns: dict[str, JsonValue] = {"quantification_level": "ion"}
+    uns: dict[str, JsonValue] = {"quantification_level": "peptidoform_ion"}
     if rule_json is not None:
         uns["provenance"] = {"rule_json": rule_json}
     level = ParsedLevel.build(
@@ -127,7 +127,7 @@ def parsed_result(
             )
         },
     )
-    return ParsedLevels(levels={"ion": level}, uns={})
+    return ParsedLevels(levels={"peptidoform_ion": level}, uns={})
 
 
 SPECIES_ORGANISMS = {
@@ -155,7 +155,7 @@ def write_module(
                 f'suffix = "{flag}"',
             ]
         )
-    lines.extend(["[general]", 'level = "ion"', "min_count_multispec = 1"])
+    lines.extend(["[general]", 'level = "peptidoform_ion"', "min_count_multispec = 1"])
     if normalization is not None:
         lines.append(f'abundance_normalization = "{normalization}"')
     if alias:

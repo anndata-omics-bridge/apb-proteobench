@@ -105,7 +105,7 @@ def test_cli_run_can_convert_only_ion_to_h5ad(tmp_path: Path) -> None:
             "--software",
             "diann",
             "--level",
-            "ion",
+            "peptidoform_ion",
             "--output",
             str(target),
             "--result-performance",
@@ -120,7 +120,7 @@ def test_cli_run_can_convert_only_ion_to_h5ad(tmp_path: Path) -> None:
     )
 
     assert status == 0
-    assert list(read_parsed_levels(target).levels) == ["ion"]
+    assert list(read_parsed_levels(target).levels) == ["peptidoform_ion"]
     assert result_performance.is_file()
     (proteobot,) = result_performance.parent.glob("*.json")
     assert json.loads(scores.read_text()) == json.loads(proteobot.read_text())
@@ -147,7 +147,7 @@ def test_cli_run_can_convert_only_ion_to_h5ad(tmp_path: Path) -> None:
         assert [phase["name"] for phase in document["phases"]] == phases
         assert all(phase["seconds"] >= 0 for phase in document["phases"])
     conversion = json.loads((timings_dir / "apb2.convert.timings.json").read_text())
-    assert [level["level"] for level in conversion["levels"]] == ["ion"]
+    assert [level["level"] for level in conversion["levels"]] == ["peptidoform_ion"]
 
 
 def test_cli_run_refuses_existing_timing_file_before_scoring(tmp_path: Path) -> None:
@@ -170,7 +170,7 @@ def test_cli_run_refuses_existing_timing_file_before_scoring(tmp_path: Path) -> 
             "--software",
             "diann",
             "--level",
-            "ion",
+            "peptidoform_ion",
             "--output",
             str(target),
             "--timings-dir",
@@ -227,5 +227,5 @@ def test_cli_run_starts_at_vendor_files_and_writes_final_result(
     assert proteobot_paths[0].stem == proteobot["intermediate_hash"]
     assert proteobot["fixed_mods"] == "C[Carbamidomethyl]"
     restored = read_parsed_levels(target)
-    assert "fasta_validation" in restored.levels["ion"].varm
-    assert "proteobench:Precursor_Normalised" in restored.levels["ion"].varm
+    assert "fasta_validation" in restored.levels["peptidoform_ion"].varm
+    assert "proteobench:Precursor_Normalised" in restored.levels["peptidoform_ion"].varm

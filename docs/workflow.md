@@ -20,7 +20,7 @@ apb-proteobench run quant report.tsv proteins.fasta \
     --params search-parameters.txt \
     --module module_settings.toml \
     --software spectronaut \
-    --level ion \
+    --level peptidoform_ion \
     --output results/scored.h5ad \
     --result-performance reports/result_performance.csv \
     --verbose
@@ -40,7 +40,7 @@ apb2 convert report.tsv \
 apb-fasta verify-peptides \
     results/all-levels.h5mu proteins.fasta \
     --output results/fasta-checked.h5mu
-apb-aggregate ion protein sum \
+apb-aggregate peptidoform_ion protein sum \
     results/fasta-checked.h5mu results/aggregated.h5mu
 apb-proteobench benchmark \
     results/aggregated.h5mu module_settings.toml results/scored.h5mu
@@ -48,7 +48,7 @@ apb-proteobench benchmark \
 
 Aggregation is reached only through the `apb-aggregate` CLI, never as a library call. That is what keeps APB ProteoBench free of a dependency on it.
 
-Include the step only when `module_settings.toml` names a level the vendor table does not report. Run it once per source level, chaining outputs when both `ion` and `fragment` must reach `protein`. Omit it and `benchmark` reads `fasta-checked.h5mu` directly.
+Include the step only when `module_settings.toml` names a level the vendor table does not report. Run it once per source level, chaining outputs when both `peptidoform_ion` and `peptidoform_fragment` must reach `protein`. Omit it and `benchmark` reads `fasta-checked.h5mu` directly.
 
 ## Start from an existing APB2 result
 
@@ -58,7 +58,7 @@ Skip conversion when another process already produced the APB2 result:
 apb-fasta verify-peptides \
     existing-result.parquet proteins.fasta \
     --output results/fasta-checked.parquet
-apb-aggregate ion protein sum \
+apb-aggregate peptidoform_ion protein sum \
     results/fasta-checked.parquet results/aggregated.parquet
 apb-proteobench benchmark \
     results/aggregated.parquet module_settings.toml results/scored.parquet

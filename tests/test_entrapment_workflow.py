@@ -94,7 +94,11 @@ def _fasta(fasta: Path) -> FastaAnnotator:
 
 def test_every_catalogued_q_value_kind_is_scored(tmp_path: Path) -> None:
     data, parameters, fasta = _write_inputs(tmp_path)
-    parsed = ParseRuleCompiler.detect(data, parameters, requested_levels=("ion",)).compile().parse()
+    parsed = (
+        ParseRuleCompiler.detect(data, parameters, requested_levels=("peptidoform_ion",))
+        .compile()
+        .parse()
+    )
     analyzer = EntrapmentAnalyzer(
         load_packaged_entrapment_module("entrapment_dia_astral"), _fasta(fasta)
     )
@@ -114,7 +118,7 @@ def test_every_catalogued_q_value_kind_is_scored(tmp_path: Path) -> None:
     best = dict(result.precursors.select("peptide", "q_value").iter_rows())
     assert best["AAAK"] == pytest.approx(0.001), "best run"
 
-    ion = result.parsed.levels["ion"]
+    ion = result.parsed.levels["peptidoform_ion"]
     labels = ion.varm[DIAGNOSTICS_SLOT]
     assert isinstance(labels, pl.DataFrame)
     assert labels.height == ion.var.frame.height
@@ -141,7 +145,11 @@ def test_every_catalogued_q_value_kind_is_scored(tmp_path: Path) -> None:
 
 def test_a_result_scored_once_refuses_a_second_scoring(tmp_path: Path) -> None:
     data, parameters, fasta = _write_inputs(tmp_path)
-    parsed = ParseRuleCompiler.detect(data, parameters, requested_levels=("ion",)).compile().parse()
+    parsed = (
+        ParseRuleCompiler.detect(data, parameters, requested_levels=("peptidoform_ion",))
+        .compile()
+        .parse()
+    )
     analyzer = EntrapmentAnalyzer(
         load_packaged_entrapment_module("entrapment_dia_astral"), _fasta(fasta)
     )
@@ -186,7 +194,7 @@ def test_cli_run_entrapment_writes_a_scored_result(tmp_path: Path) -> None:
     assert sorted(datapoints) == ["global_q_value", "library_q_value", "q_value"]
     assert datapoints["library_q_value"]["paired_FDP"] == 5 / 6
     assert {"software_name", "precursor_mass_tolerance", "fdp_curve"} <= set(datapoints["q_value"])
-    stored = read_parsed_levels(target).levels["ion"].metadata["proteobench"]
+    stored = read_parsed_levels(target).levels["peptidoform_ion"].metadata["proteobench"]
     assert isinstance(stored, dict)
     record = stored["result"]
     assert isinstance(record, dict)

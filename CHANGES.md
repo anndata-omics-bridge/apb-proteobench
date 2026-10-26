@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-10-26
+
+- **Breaking:** APB2's level `ion` is now `peptidoform_ion`. Module settings, `--level` and `QuantificationLevel` take the new name; the packaged module TOMLs say `level = "peptidoform_ion"` and are re-pinned
+
 ## 2026-10-23
 
 - Entrapment scoring takes q-value kinds from both `catalog.layer` and `catalog.var`: a kind stored per run is scored from its best value across runs, one stored per precursor (DIA-NN's library and global q-values, Spectronaut 21's library q-value) from that value.

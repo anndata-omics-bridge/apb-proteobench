@@ -18,7 +18,7 @@ suffix = "_HUMAN"
 
 [general]
 min_count_multispec = 1
-level = "ion"
+level = "peptidoform_ion"
 default_cutoff_min_feature = 1
 max_nr_observed = 6
 
@@ -56,15 +56,15 @@ eight HYE/HY modules used by the legacy APB integration and the plasma module:
 
 | Name | Acquisition and instrument | Level |
 | --- | --- | --- |
-| `dda_astral` | DDA Astral | ion |
+| `dda_astral` | DDA Astral | peptidoform_ion |
 | `dda_peptidoform` | DDA | peptidoform |
-| `dda_qexactive` | DDA Q Exactive | ion |
-| `dia_aif` | DIA AIF | ion |
-| `dia_astral` | DIA Astral | ion |
-| `dia_diapasef` | DIA diaPASEF | ion |
-| `dia_plasma` | DIA timsTOF, human plasma background (PYE) | ion |
-| `dia_singlecell` | DIA low-input/single-cell | ion |
-| `dia_zenotof` | DIA ZenoTOF | ion |
+| `dda_qexactive` | DDA Q Exactive | peptidoform_ion |
+| `dia_aif` | DIA AIF | peptidoform_ion |
+| `dia_astral` | DIA Astral | peptidoform_ion |
+| `dia_diapasef` | DIA diaPASEF | peptidoform_ion |
+| `dia_plasma` | DIA timsTOF, human plasma background (PYE) | peptidoform_ion |
+| `dia_singlecell` | DIA low-input/single-cell | peptidoform_ion |
+| `dia_zenotof` | DIA ZenoTOF | peptidoform_ion |
 
 ### Load from Python
 

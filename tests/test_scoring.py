@@ -51,7 +51,7 @@ def test_a_vendor_decoy_is_excluded_like_a_contaminant() -> None:
 
 def test_scoring_refuses_a_result_without_vendor_markings() -> None:
     parsed = parsed_result()
-    level = parsed.levels["ion"]
+    level = parsed.levels["peptidoform_ion"]
     level.var.frame = level.var.frame.drop("apb_Decoy")
 
     with pytest.raises(ValueError, match=r"vendor markings; missing \['apb_Decoy'\]"):
@@ -61,7 +61,7 @@ def test_scoring_refuses_a_result_without_vendor_markings() -> None:
 def test_vendor_proteins_decide_species_and_contaminants_from_the_reported_members() -> None:
     # The peptide of feature 5 occurs in a human and a yeast protein; the vendor reports one.
     parsed = parsed_result()
-    level = parsed.levels["ion"]
+    level = parsed.levels["peptidoform_ion"]
     level.varm["fasta_validation"] = level.varm["fasta_validation"].with_columns(
         pl.Series("reported_member_organisms", ["HUMAN", "YEAST", "ECOLI", "", "HUMAN", ""]),
         pl.Series("reported_members_contaminant", [False, False, True, False, False, False]),
@@ -78,7 +78,7 @@ def test_vendor_proteins_decide_species_and_contaminants_from_the_reported_membe
 
 def test_vendor_proteins_require_the_fasta_accessions_role() -> None:
     parsed = parsed_result()
-    level = parsed.levels["ion"]
+    level = parsed.levels["peptidoform_ion"]
     level.var.roles = {"protein_assignment": "Protein_Ids"}
 
     with pytest.raises(ValueError, match="requires a stored fasta_accessions column role"):
@@ -130,7 +130,7 @@ def test_single_cell_hy_module_matches_hand_computed_ratios() -> None:
         matched_organisms=pd.Series(["HUMAN", "YEAST"]),
         contaminants=np.array([False, False]),
         decoys=np.array([False, False]),
-        level="ion",
+        level="peptidoform_ion",
     )
 
     result = analyze_level(
@@ -158,7 +158,7 @@ def test_dense_and_sparse_diagnostics_are_equal() -> None:
         inputs.decoys,
         configuration,
         design,
-        "ion",
+        "peptidoform_ion",
     )
     sparse_result = compute_intermediate(
         sparse.csr_matrix(np.nan_to_num(matrix_values(), nan=0.0)),
@@ -168,7 +168,7 @@ def test_dense_and_sparse_diagnostics_are_equal() -> None:
         inputs.decoys,
         configuration,
         design,
-        "ion",
+        "peptidoform_ion",
     )
     pd.testing.assert_frame_equal(dense.varm, sparse_result.varm)
     pd.testing.assert_frame_equal(dense.legacy, sparse_result.legacy)

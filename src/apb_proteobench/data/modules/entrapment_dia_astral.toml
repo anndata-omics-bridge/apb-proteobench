@@ -2,4 +2,4 @@
 sdrf = "entrapment_dia_astral.sdrf.tsv"
 
 [general]
-"level" = "ion"
+"level" = "peptidoform_ion"

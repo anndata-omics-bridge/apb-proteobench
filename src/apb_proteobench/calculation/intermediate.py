@@ -29,7 +29,7 @@ _CONDITION_METRICS = (
 )
 # ProteoBench's own intermediate names its feature column after the module level; levels it has no
 # module for keep the plain level name.
-_LEGACY_FEATURE_COLUMN = {"ion": "precursor ion", "peptidoform": "peptidoform"}
+_LEGACY_FEATURE_COLUMN = {"peptidoform_ion": "precursor ion", "peptidoform": "peptidoform"}
 
 
 @dataclass(frozen=True)
