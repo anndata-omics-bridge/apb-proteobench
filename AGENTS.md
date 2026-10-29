@@ -6,7 +6,7 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 
 | Task | Command |
 | --- | --- |
-| Synchronize | `uv sync --group dev` |
+| Synchronize | `uv sync --group dev --group docs` |
 | Format | `.venv/bin/ruff format src tests && .venv/bin/ruff check --fix src tests` |
 | Lint | `.venv/bin/ruff check src tests` |
 | Typecheck | `.venv/bin/pyright` |
@@ -33,8 +33,8 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 - Import `ParsedLevels` from `apb2.api` in the public API. Only the CLI may import APB2 compilation,
   quantification-level, and result-I/O operations; only integration may import lower-level result
   types and projection helpers.
-- The only permitted APB dependencies are `apb2`, `apb-fasta` and `apb-catalog`. Never import `apb_aggregate` or
-  any other sibling APB tool; reach aggregation through the `apb-aggregate` CLI as a separate step.
+- The only permitted APB dependencies are `apb2`, `apb-fasta` and `apb-catalog`. Never import any other
+  sibling APB package.
 - Keep HYE and HY configuration-driven. Do not add benchmark-name branches or preset catalogues.
 - Preserve the tool-owned layout: root `proteobench.provenance.annotation`, `.scoring` and `.entrapment` hold common configuration, beside the record's `schema_version` 4; level `proteobench.result.scoring[quantity_name]` holds each layer's roles and scores, `.result.entrapment[kind]` the entrapment scores, `summary` their headline metrics and `details` the `varm` slots. Sample matching evidence sits in the level's `prolfquapp` record. No `layers` wrapper, `X` score alias or duplicated selection list; keep reversible layer-name escaping. See [result layout](docs/results.md).
 

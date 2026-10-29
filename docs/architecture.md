@@ -13,8 +13,8 @@ calculation protocols and workflow
         ↓
 diagnostics / scoring / configuration
 
-apb-proteobench → APB2 public in-memory, annotation, and result facades
-APB2 -/→ apb-proteobench
+apb-proteobench → apb2.api, apb_fasta.api, apb_catalog.api
+APB2, APB FASTA, APB Catalog -/→ apb-proteobench
 ```
 
 ## Package boundaries
@@ -32,13 +32,10 @@ matrix, feature identifiers, protein assignments, and level name. They never rec
 MuData, or `ParsedLevels`. The integration boundary extracts those values and attaches the completed
 analysis to a new `ParsedLevels`; APB2 persists it when the caller requests storage.
 
-## Replaceable methods
+## Calculation methods
 
-`DiagnosticMethod` and `ScoringMethod` are client-owned protocols. The default composition uses
-`MixedSpeciesDiagnostics` and `ProteoBenchCompatibleScoring`; callers can explicitly substitute
-another implementation without adding method-name branches. Automatic plugin discovery is not
-part of this release.
+`DiagnosticMethod` and `ScoringMethod` are internal extension points in `workflow.py`, not part of `api.py`. The default composition uses `MixedSpeciesDiagnostics` and `ProteoBenchCompatibleScoring` and selects no method by name. Automatic plugin discovery is not part of this release.
 
 ## Persisted extension data
 
-ProteoBench owns one tool namespace. Root `provenance` records annotation configuration and common scoring methods; the module-selected level records `annotation` matching evidence and `scoring[quantity_name]`. Aligned diagnostics remain in that level's `varm`. APB2's writers map these logical owners to H5AD, H5MU, Parquet or DuckDB without tool-specific branches; calculations remain storage-independent. See [Result layout](results.md).
+ProteoBench owns one tool namespace. Root `provenance` records annotation configuration and common scoring methods; the module-selected level records `result.scoring[quantity_name]`, a `summary` and the `details` naming its `varm` slots, while sample matching evidence sits in the level's `prolfquapp` record. Aligned diagnostics remain in that level's `varm`. APB2's writers map these logical owners to H5AD, H5MU, Parquet or DuckDB without tool-specific branches; calculations remain storage-independent. See [Result layout](results.md).

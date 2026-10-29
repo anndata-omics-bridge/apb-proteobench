@@ -17,14 +17,13 @@ The interfaces expose two primary routes:
 ```text
 direct:  vendor table + parameters + FASTA + module -> checked + scored MuData
 
-staged:  vendor table -> APB2 result -> FASTA check -> [aggregation] -> scored result
-         apb2 convert   apb-fasta       apb-aggregate    apb-proteobench
+staged:  vendor table -> APB2 result -> FASTA check -> scored result
+         apb2 convert   apb-fasta       apb-proteobench
 ```
 
-Neither route aggregates. APB ProteoBench declares only APB2 and APB FASTA; the optional
-aggregation step is reached through the separate `apb-aggregate` CLI, never as a library import.
+Neither route aggregates. APB ProteoBench declares APB2, APB FASTA and APB Catalog.
 
-Use the direct route for one final artifact. Use the staged route when intermediates need to be inspected, cached, or reused, or when the scored level must be derived from a lower one. Existing APB2 results can enter at either FASTA checking or ProteoBench benchmarking. The command line stays at these two complete workflows; the Python API provides in-memory annotation and scoring, while APB2 owns conversion and persistence.
+Use the direct route for one final artifact. Use the staged route when intermediates need to be inspected, cached, or reused. Existing APB2 results can enter at either FASTA checking or ProteoBench benchmarking. The command line stays at these two complete workflows; the Python API provides in-memory annotation and scoring, while APB2 owns conversion and persistence.
 
 ## Command-line interface
 
@@ -43,16 +42,13 @@ Or retain each boundary as an artifact:
 ```bash
 apb2 convert report.tsv --params search-parameters.txt --output results/all
 apb-fasta verify-peptides results/all.h5mu proteins.fasta --output results/checked.h5mu
-apb-aggregate peptidoform_ion protein sum results/checked.h5mu results/aggregated.h5mu
-apb-proteobench benchmark results/aggregated.h5mu module_settings.toml results/scored.h5mu
+apb-proteobench benchmark results/checked.h5mu module_settings.toml results/scored.h5mu
 ```
-
-The aggregation call is conditional and belongs to `apb-aggregate`, not to this package: include it only when the level named in `module_settings.toml` is not the level the vendor table reports, chaining one call per source level. Otherwise `benchmark` reads `results/checked.h5mu` directly.
 
 The [end-to-end guide](workflow.md) explains both routes; the [CLI reference](cli.md) lists every
 argument and option.
 
-For the existing pMultiQC ProteoBench module, add `--result-performance reports/result_performance.csv` to `run` or `benchmark`. The compatibility export accepts one ion-level layer and publishes both the pMultiQC CSV and the sibling `<intermediate_hash>.json` ProteoBot datapoint while leaving pMultiQC and MultiQC unchanged.
+For the existing pMultiQC ProteoBench module, add `--result-performance reports/result_performance.csv` to `run` or `benchmark`. The compatibility export accepts one `peptidoform_ion` layer and publishes both the pMultiQC CSV and the sibling `<intermediate_hash>.json` ProteoBot datapoint while leaving pMultiQC and MultiQC unchanged.
 
 ## Python API
 
@@ -81,14 +77,14 @@ software, versions, file types, and quantification levels.
 
 | Operation | Accepted input | Output |
 | --- | --- | --- |
-| `run` | vendor table, parameters, one or more FASTAs, and module TOML | FASTA-checked, scored H5MU, Parquet, or DuckDB result |
+| `run` | vendor table, parameters, one or more FASTAs, and module TOML | FASTA-checked, scored H5AD, H5MU, Parquet, or DuckDB result |
 | `benchmark` | APB2 result plus module TOML | annotated and scored APB2 result |
 
-Both commands can additionally emit the canonical `result_performance.csv` pMultiQC input and matching hash-named ProteoBot JSON when requested. Their APB2 result also retains the ProteoBench score and provenance record as JSON-compatible metadata under `uns["apb"]["proteobench"]`.
+Both commands can additionally emit the canonical `result_performance.csv` pMultiQC input and matching hash-named ProteoBot JSON when requested. Their APB2 result also retains the ProteoBench record as JSON-compatible metadata: provenance on the root `uns["apb"]["proteobench"]`, scores in the configured level's `proteobench` record.
 
 The annotation stage checks that the module describes every observation exactly once. It adds `raw_file`, `sample_name`, and `condition` to the configured level. HYE and HY are module configurations consumed by the same calculation rather than separate hard-coded modes.
 
-Scoring uses one layer listed under the APB `abundance` role: `--layer NAME`, by default `X`, the APB primary layer represented by AnnData `X`. The Python API can still score every abundance layer. Per-layer feature diagnostics live in `varm["proteobench:<layer-name>"]`; selection provenance, aggregate scores, method identities, role resolution, compatibility versions, and species-mapping provenance live in `uns["apb"]["proteobench"]`.
+Scoring uses one layer listed under the APB `abundance` role: `--layer NAME`, by default `X`, the APB primary layer represented by AnnData `X`, or, for a module that sets `abundance_normalization` such as `dia_plasma`, the layer apb-catalog names for it. The Python API can still score every abundance layer. Per-layer feature diagnostics live in `varm["proteobench:<layer-name>"]`; method identities, compatibility versions and scored layer names live in the root `proteobench` provenance, and each layer's roles and scores in the level's `proteobench` result.
 
 The [module guide](configuration.md) lists all packaged module documents and their current support
 status. The [result-layout guide](results.md) documents the stored annotation, diagnostics, scores,

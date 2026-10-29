@@ -8,15 +8,15 @@
 | `apb-proteobench run entrapment` | vendor table, parameters, and the entrapment FASTA or its protein database | APB2 result scored for every precursor q-value kind |
 | `apb-proteobench benchmark` | existing APB2 result and packaged module or module TOML | scored APB2 result and optional pMultiQC/ProteoBot pair |
 
-In-memory annotation and scoring remain available through `ProteoBenchAnalyzer` and `EntrapmentAnalyzer`, but are not separate CLI commands. APB2 owns conversion and persistence. Use `apb2 convert`, `apb-fasta verify-peptides`, and `apb-aggregate` when a staged shell workflow is needed.
+In-memory annotation and scoring remain available through `ProteoBenchAnalyzer` and `EntrapmentAnalyzer`, but are not separate CLI commands. APB2 owns conversion and persistence. Use `apb2 convert` and `apb-fasta verify-peptides` before `benchmark` when a staged shell workflow is needed.
 
 Use `apb-proteobench --help` or a command's `--help` for the installed version's generated Cyclopts reference. Direct conversion supports the software, versions, inputs, parameter parsers, and levels listed in the [APB2 support matrix](https://anndata-omics-bridge.github.io/apb2/supported_software/).
 
 ## Outputs
 
-Both commands write the scored APB2 result. Its ProteoBench score and provenance record is stored as JSON-compatible metadata under `uns["apb"]["proteobench"]`.
+Both commands write the scored APB2 result. Its ProteoBench record is JSON-compatible metadata: provenance on the root `uns["apb"]["proteobench"]`, scores in the configured level's `proteobench` record; see [Result layout](results.md).
 
-Both commands also accept `--result-performance PATH`. This option writes two ion-level compatibility artifacts in the same directory: the `result_performance.csv` intermediate consumed by the existing pMultiQC ProteoBench module and the `<intermediate_hash>.json` datapoint stored by ProteoBot in `Proteobench/Results_quant_ion_DDA`.
+Both commands also accept `--result-performance PATH`. This option writes two `peptidoform_ion` compatibility artifacts in the same directory: the `result_performance.csv` intermediate consumed by the existing pMultiQC ProteoBench module and the `<intermediate_hash>.json` datapoint stored by ProteoBot in `Proteobench/Results_quant_ion_DDA`.
 
 `--scores PATH` writes that datapoint alone, at any level: the search-parameter fields ProteoBench records plus the scores, including `results` per cutoff, in the layout of the upstream datapoints, so APB scores and ProteoBench's can be compared field by field. It requires exactly one scored layer.
 
@@ -43,7 +43,7 @@ apb-proteobench run quant report.tsv human.fasta contaminants.fasta \
 
 The main options are `--level LEVEL`, `--software`, `--strict`, `--backend`, `--layer NAME`, `--proteins`, and `--timings-dir DIR`. `--proteins matched`, the default, decides species and contaminants from the FASTA proteins containing the peptide; `--proteins vendor` from the proteins the vendor reports, as ProteoBench does. `benchmark` accepts it too, and scoring provenance records it. `--level` converts one quantification level; omitting it converts every compatible level. `--layer NAME` scores one abundance layer; the default `X` is the module's layer: the APB primary layer stored in AnnData `X`, or, for a module that sets `abundance_normalization` such as `dia_plasma`, the layer apb-catalog names for it. `--timings-dir` optionally writes separate version-1 timing JSON files for APB2 conversion (`compile`, `read`, `parse`), FASTA verification (`load_database`, `verify_peptides`), and ProteoBench benchmarking (`load_module`, `analyze`, `write`, and `export` when requested). The files are independent of the scientific result and refuse existing targets. At least one FASTA is required. A single-level output may end in `.h5ad`; `.h5mu`, `.parquet`, and `.duckdb` support multiple levels. The target must differ from the vendor table and must not already exist.
 
-`run quant` performs no quantitative aggregation and scores the level named in `module_settings.toml` as the vendor table reports it. To derive the configured level from a lower one, use the staged route and insert `apb-aggregate` before `benchmark`.
+`run quant` performs no quantitative aggregation and scores the level named in `module_settings.toml` as the vendor table reports it.
 
 ## `apb-proteobench run entrapment`
 

@@ -61,20 +61,9 @@ A module that sets `abundance_normalization`, such as `dia_plasma`, changes what
 result = ProteoBenchAnalyzer(module, proteins="vendor").analyze(parsed)
 ```
 
-## Substitute calculation methods
+## Calculation methods
 
-The analyzer accepts implementations of the client-owned `DiagnosticMethod` and `ScoringMethod` protocols at construction:
-
-```python
-analyzer = ProteoBenchAnalyzer(
-    module,
-    diagnostic_method=my_diagnostics,
-    scoring_method=my_scoring,
-)
-result = analyzer.analyze(parsed)
-```
-
-The selected objects perform the calculation directly. The analyzer does not inspect method names or branch on implementation types.
+`diagnostic_method` and `scoring_method` take the internal `DiagnosticMethod` and `ScoringMethod` protocols, extension points inside this package that `api.py` does not export; callers keep the defaults. The analyzer does not inspect method names or branch on implementation types.
 
 ## Compose vendor conversion explicitly
 

@@ -34,13 +34,10 @@ The equivalent reusable workflow calls the existing tools directly:
 ```bash
 apb2 convert report.tsv --params search-parameters.txt --software spectronaut --output results/all
 apb-fasta verify-peptides results/all.h5mu proteins.fasta --output results/fasta-checked.h5mu
-apb-aggregate peptidoform_ion protein sum results/fasta-checked.h5mu results/aggregated.h5mu
-apb-proteobench benchmark results/aggregated.h5mu module_settings.toml results/scored.h5mu
+apb-proteobench benchmark results/fasta-checked.h5mu module_settings.toml results/scored.h5mu
 ```
 
-The `apb-aggregate` step is optional: include it only when the scored level must be derived from a lower one. Omit it and `benchmark` reads `results/fasta-checked.h5mu` directly.
-
-APB ProteoBench declares `apb2`, `apb-fasta` and `apb-catalog`, and reaches aggregation solely as a subprocess.
+APB ProteoBench declares `apb2`, `apb-fasta` and `apb-catalog`.
 
 The CLI intentionally exposes only `run` and `benchmark`; APB2 owns conversion and persistence, while the Python API exposes in-memory ProteoBench analysis over canonical `ParsedLevels`. `benchmark` combines annotation and scoring for an existing APB2 result. Scoring uses one abundance layer: `--layer NAME`, by default `X`, the APB primary layer projected to AnnData `X`; a module that sets `abundance_normalization`, such as `dia_plasma`, makes `X` the layer apb-catalog's `abundance` set names for it. Per-layer diagnostics live in `varm["proteobench:<layer-name>"]`, while selection provenance and layer-keyed scores live in `metadata["proteobench"]`. See the [documentation](https://anndata-omics-bridge.github.io/apb-proteobench/).
 

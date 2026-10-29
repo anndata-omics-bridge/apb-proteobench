@@ -90,9 +90,7 @@ upstream catalogue:
 
 `load_packaged_module()` refuses both. `load_packaged_entrapment_module("entrapment_dia_astral")` loads the entrapment module for `EntrapmentAnalyzer`; see the [Python API](api.md#score-entrapment).
 
-The nine supported modules are derived from ProteoBench's module TOMLs, with their sample design moved into packaged SDRFs; the two others are unchanged copies. All files are pinned by checksum. Their source revision, original paths,
-and support status are recorded in
-[`MODULES_NOTICE.md`](https://github.com/anndata-omics-bridge/apb-proteobench/blob/main/src/apb_proteobench/data/MODULES_NOTICE.md).
+The nine supported modules are derived from ProteoBench's module TOMLs, with their sample design moved into packaged SDRFs. `entrapment_dia_astral` gains an SDRF, drops the upstream `mapping_file` and names its level `peptidoform_ion`; `denovo_dda_hcd` is an unchanged copy. All files are pinned by checksum. Their source revision, original paths, and support status are recorded in [`MODULES_NOTICE.md`](https://github.com/anndata-omics-bridge/apb-proteobench/blob/main/src/apb_proteobench/data/MODULES_NOTICE.md).
 
 ## Persisted form
 

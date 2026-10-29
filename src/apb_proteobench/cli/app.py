@@ -305,9 +305,8 @@ def run_quant(
 ) -> int:
     """Score one quantitative module: write scored APB2 output and optional pMultiQC/ProteoBot export.
 
-    Quantitative aggregation is a separate step: run apb-aggregate between conversion
-    and benchmarking when the scored level must be derived from a lower one. Use
-    --level LEVEL to convert one quantification level. --layer NAME scores one abundance
+    Scores the level as the vendor table reports it; no quantitative aggregation.
+    Use --level LEVEL to convert one quantification level. --layer NAME scores one abundance
     layer; the default "X" is the module's layer, the APB primary layer unless the module
     sets abundance_normalization.
     --timings-dir records internal operation timings outside the scored result.
