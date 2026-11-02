@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 QuantificationLevel = Literal["peptidoform_ion", "peptidoform"]
 AbundanceNormalization = Literal["none", "run_setting"]
-"""The normalization a module scores; integration maps it to apb-catalog's ``abundance`` kind."""
+"""The normalization a module scores; integration maps it to apb-catalog's ``abundance`` key."""
 
 
 class _SettingsModel(BaseModel):

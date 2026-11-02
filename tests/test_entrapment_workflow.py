@@ -92,7 +92,7 @@ def _fasta(fasta: Path) -> FastaAnnotator:
     return FastaAnnotator.read((fasta,))
 
 
-def test_every_catalogued_q_value_kind_is_scored(tmp_path: Path) -> None:
+def test_every_catalogued_q_value_is_scored_by_key_and_location(tmp_path: Path) -> None:
     data, parameters, fasta = _write_inputs(tmp_path)
     parsed = (
         ParseRuleCompiler.detect(data, parameters, requested_levels=("peptidoform_ion",))
@@ -105,17 +105,17 @@ def test_every_catalogued_q_value_kind_is_scored(tmp_path: Path) -> None:
 
     result = analyzer.analyze(parsed)
 
-    assert {kind: scores.paired_FDP for kind, scores in result.scores.items()} == {
-        "q_value": 3 / 6,
-        "library_q_value": 5 / 6,
-        "global_q_value": 7 / 6,
+    assert {name: scores.paired_FDP for name, scores in result.scores.items()} == {
+        "layers.q_value": 3 / 6,
+        "var.library_q_value": 5 / 6,
+        "var.q_value": 7 / 6,
     }
-    run = result.scores["q_value"]
+    run = result.scores["layers.q_value"]
     assert (run.nr_id_features, run.lower_bound_FDP, run.combined_FDP) == (6, 0.5, 1.0)
     assert run.reported_fdr_parsed_from_input == pytest.approx(0.005)
     sequences = dict(result.precursors.select("peptide", "sequence").iter_rows())
     assert sequences["GGMC"] == "GGMC[Carbamidomethyl]", "last-residue modification"
-    best = dict(result.precursors.select("peptide", "q_value").iter_rows())
+    best = dict(result.precursors.select("peptide", "layers.q_value").iter_rows())
     assert best["AAAK"] == pytest.approx(0.001), "best run"
 
     ion = result.parsed.levels["peptidoform_ion"]
@@ -129,14 +129,14 @@ def test_every_catalogued_q_value_kind_is_scored(tmp_path: Path) -> None:
     assert isinstance(record, dict)
     entrapment = record["entrapment"]
     assert isinstance(entrapment, dict)
-    assert sorted(entrapment) == ["global_q_value", "library_q_value", "q_value"]
+    assert sorted(entrapment) == ["layers.q_value", "var.library_q_value", "var.q_value"]
     assert stored["details"] == [{"slot": "varm", "name": DIAGNOSTICS_SLOT}]
     summary = stored["summary"]
     assert isinstance(summary, list)
     assert {(entry["name"], entry["layer"]) for entry in summary if isinstance(entry, dict)} == {
-        (name, kind)
+        (name, q_value)
         for name in ("identified_features", "combined_fdp", "paired_fdp")
-        for kind in ("global_q_value", "library_q_value", "q_value")
+        for q_value in ("layers.q_value", "var.library_q_value", "var.q_value")
     }
     catalog = result.parsed.metadata["catalog"]
     assert isinstance(catalog, dict)
@@ -191,16 +191,18 @@ def test_cli_run_entrapment_writes_a_scored_result(tmp_path: Path) -> None:
 
     assert status == 0
     datapoints = json.loads(scores.read_text())
-    assert sorted(datapoints) == ["global_q_value", "library_q_value", "q_value"]
-    assert datapoints["library_q_value"]["paired_FDP"] == 5 / 6
-    assert {"software_name", "precursor_mass_tolerance", "fdp_curve"} <= set(datapoints["q_value"])
+    assert sorted(datapoints) == ["layers.q_value", "var.library_q_value", "var.q_value"]
+    assert datapoints["var.library_q_value"]["paired_FDP"] == 5 / 6
+    assert {"software_name", "precursor_mass_tolerance", "fdp_curve"} <= set(
+        datapoints["layers.q_value"]
+    )
     stored = read_parsed_levels(target).levels["peptidoform_ion"].metadata["proteobench"]
     assert isinstance(stored, dict)
     record = stored["result"]
     assert isinstance(record, dict)
     entrapment = record["entrapment"]
     assert isinstance(entrapment, dict)
-    library = entrapment["library_q_value"]
+    library = entrapment["var.library_q_value"]
     assert isinstance(library, dict)
     assert library["paired_FDP"] == 5 / 6
     benchmark = json.loads((timings / "apb-proteobench.benchmark.timings.json").read_text())

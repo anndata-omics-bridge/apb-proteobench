@@ -36,7 +36,7 @@ The closest `AGENTS.md` wins. Explicit user instructions override this file.
 - The only permitted APB dependencies are `apb2`, `apb-fasta` and `apb-catalog`. Never import any other
   sibling APB package.
 - Keep HYE and HY configuration-driven. Do not add benchmark-name branches or preset catalogues.
-- Preserve the tool-owned layout: root `proteobench.provenance.annotation`, `.scoring` and `.entrapment` hold common configuration, beside the record's `schema_version` 4; level `proteobench.result.scoring[quantity_name]` holds each layer's roles and scores, `.result.entrapment[kind]` the entrapment scores, `summary` their headline metrics and `details` the `varm` slots. Sample matching evidence sits in the level's `prolfquapp` record. No `layers` wrapper, `X` score alias or duplicated selection list; keep reversible layer-name escaping. See [result layout](docs/results.md).
+- Preserve the tool-owned layout: root `proteobench.provenance.annotation`, `.scoring` and `.entrapment` hold common configuration, beside the record's `schema_version` 4; level `proteobench.result.scoring[quantity_name]` holds each layer's roles and scores, `.result.entrapment["<location>.<key>"]` the entrapment scores, `summary` their headline metrics and `details` the `varm` slots. Sample matching evidence sits in the level's `prolfquapp` record. No `layers` wrapper, `X` score alias or duplicated selection list; keep reversible layer-name escaping. See [result layout](docs/results.md).
 
 ## Compatibility policy
 

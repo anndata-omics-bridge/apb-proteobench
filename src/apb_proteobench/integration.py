@@ -31,11 +31,11 @@ _STORAGE_KEY = "proteobench"
 _DIAGNOSTICS_PREFIX = f"{_STORAGE_KEY}:"
 ABUNDANCE_CATALOGUE = "abundance"
 """The apb-catalog set saying what each abundance layer measures and whether it is normalized."""
-ABUNDANCE_KINDS: dict[AbundanceNormalization, str] = {
+ABUNDANCE_KEYS: dict[AbundanceNormalization, str] = {
     "none": "intensity",
     "run_setting": "normalized_intensity",
 }
-"""The ``abundance`` kind that names each module normalization."""
+"""The ``abundance`` key that names each module normalization."""
 
 type ProteinSource = Literal["matched", "vendor"]
 """Which proteins decide a feature's species and contaminants, both resolved by apb-fasta.
@@ -183,7 +183,7 @@ def select_layers(
 def module_layer(parsed: ParsedLevels, configuration: ModuleSettings, /) -> ModuleLayer | None:
     """Find the layer the module's abundance normalization asks for; ``None`` if it asks none.
 
-    That is the configured level's layer of the kind that names that normalization in
+    That is the configured level's layer of the key that names that normalization in
     apb-catalog's ``abundance`` set: ``intensity`` for ``none``, ``normalized_intensity`` for
     ``run_setting``. When the set has none, or cannot say, the level's primary layer stands
     in and the answer is marked not found. An ambiguous answer raises ``UnresolvedField``.
@@ -195,7 +195,7 @@ def module_layer(parsed: ParsedLevels, configuration: ModuleSettings, /) -> Modu
     level = _configured_level(parsed, configuration)
     catalog = DataCatalog(parsed, ABUNDANCE_CATALOGUE)
     try:
-        table = catalog.layer(level_name, kind=ABUNDANCE_KINDS[normalization])
+        table = catalog.layer(level_name, key=ABUNDANCE_KEYS[normalization])
     except UnresolvedField as error:
         if error.resolution.status != "unknown":
             raise

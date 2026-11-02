@@ -145,7 +145,7 @@ class EntrapmentCliOptions:
     ] = "auto"
     scores: Annotated[
         Path | None,
-        Parameter(help="Write the ProteoBench entrapment datapoint JSON per q-value kind"),
+        Parameter(help="Write the ProteoBench entrapment datapoint JSON per q-value"),
     ] = None
     timings_dir: Annotated[
         Path | None,
@@ -385,10 +385,10 @@ def run_entrapment(
     ],
     options: Annotated[EntrapmentCliOptions, Parameter(name="*")] = DEFAULT_ENTRAPMENT_CLI_OPTIONS,
 ) -> int:
-    """Score one entrapment module: FDP estimates for every precursor q-value kind.
+    """Score one entrapment module: FDP estimates for every precursor q-value.
 
-    The result offers its q-value kinds through apb-catalog's proteobench_entrapment set;
-    each kind is scored. Labels and pairs come from the entrapment FASTA, or from its Parquet
+    The result offers its q-values through apb-catalog's proteobench_entrapment set, by key
+    and location; each is scored as ``<location>.<key>``. Labels and pairs come from the entrapment FASTA, or from its Parquet
     protein database written by protein-fasta database.
     --timings-dir records internal operation timings outside the scored result.
     """
@@ -427,8 +427,8 @@ def run_entrapment(
             parameters = conversion.compiler.parameters.model_dump(mode="json")
             write_scores(
                 {
-                    kind: _datapoint(parameters, json.loads(scores.model_dump_json()))
-                    for kind, scores in result.scores.items()
+                    name: _datapoint(parameters, json.loads(scores.model_dump_json()))
+                    for name, scores in result.scores.items()
                 },
                 options.scores,
             )
@@ -448,11 +448,11 @@ def _report_entrapment(
         conversion.compiler.detection.software,
         conversion.compiler.detection.version or "missing",
     )
-    for kind, scores in result.scores.items():
+    for name, scores in result.scores.items():
         logger.info(
-            "kind={} precursors={} reported_fdr={:.6g} lower_bound_FDP={:.6g} "
+            "q_value={} precursors={} reported_fdr={:.6g} lower_bound_FDP={:.6g} "
             "combined_FDP={:.6g} ({}) paired_FDP={:.6g} ({})",
-            kind,
+            name,
             scores.nr_id_features,
             scores.reported_fdr_parsed_from_input,
             scores.lower_bound_FDP,

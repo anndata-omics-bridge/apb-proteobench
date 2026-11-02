@@ -1,5 +1,10 @@
 # Changes
 
+## 2026-11-02
+
+- **Breaking:** apb-catalog asks by key. Entrapment scores are named `<location>.<key>`, since `q_value` now names both the per-run layer and the experiment-wide `var` column (apb-catalog's former `global_q_value`): `layers.q_value`, `var.q_value`, `var.library_q_value`, in `result.entrapment`, the `summary` layers, `--scores` and the provenance's `q_values` (was `kinds`)
+- A module's `abundance_normalization` selects apb-catalog's `abundance` key: `intensity` for `none`, `normalized_intensity` for `run_setting`
+
 ## 2026-10-26
 
 - **Breaking:** APB2's level `ion` is now `peptidoform_ion`. Module settings, `--level` and `QuantificationLevel` take the new name; the packaged module TOMLs say `level = "peptidoform_ion"` and are re-pinned
