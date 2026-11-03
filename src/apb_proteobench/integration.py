@@ -194,15 +194,17 @@ def module_layer(parsed: ParsedLevels, configuration: ModuleSettings, /) -> Modu
     level_name = configuration.general.level
     level = _configured_level(parsed, configuration)
     catalog = DataCatalog(parsed, ABUNDANCE_CATALOGUE)
+    layers = catalog.levels[level_name].layers
+    key = ABUNDANCE_KEYS[normalization]
     try:
-        table = catalog.layer(level_name, key=ABUNDANCE_KEYS[normalization])
+        name = layers.name(key) if key in layers else None
     except UnresolvedField as error:
         if error.resolution.status != "unknown":
             raise
-        table = None
+        name = None
     return ModuleLayer(
-        name=level.primary_layer_name if table is None else table.layer_name,
-        found=table is not None,
+        name=level.primary_layer_name if name is None else name,
+        found=name is not None,
         snapshot=catalog.snapshot(),
     )
 

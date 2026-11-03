@@ -8,6 +8,7 @@ from copy import deepcopy
 from dataclasses import dataclass, replace
 from typing import cast
 
+import numpy as np
 import polars as pl
 from apb2.api import JsonValue, ParsedLevels
 from apb_catalog.api import DataCatalog, attach_snapshot, catalogue_table
@@ -103,11 +104,11 @@ def _precursors(
     Only the set's own keys are scored, not those of ``apb``, which every catalog composes.
     """
     own = set(catalogue_table(CATALOGUE).get_column("key"))
-    offered = [
-        (location, key)
-        for location in ("layers", "var")
-        for key in catalog.keys(level_name, location)
-        if key in own
+    if level_name not in catalog.levels:
+        raise EntrapmentError(f"the result has no {level_name} level")
+    found = catalog.levels[level_name]
+    offered = [("layers", key) for key in sorted(found.layers.keys()) if key in own] + [
+        ("var", key) for key in sorted(found.var.keys()) if key in own
     ]
     names = tuple(f"{location}.{key}" for location, key in offered)
     if not names:
@@ -124,18 +125,16 @@ def _precursors(
     )
     for (location, key), name in zip(offered, names, strict=True):
         if location == "var":
-            column = catalog.var(level_name, key=key)
+            column = found.var.get(key)
             if column is None:
                 raise EntrapmentError(f"the catalogue offers {name!r} but resolves no column")
             frame = frame.with_columns(column.cast(pl.Float64).alias(name))
             continue
-        table = catalog.layer(level_name, key=key)
-        if table is None:
+        matrix = found.layers.get(key)
+        if matrix is None:
             raise EntrapmentError(f"the catalogue offers {name!r} but resolves no layer")
-        best = level.var.frame.select(keys).hstack(
-            table.wide().select(pl.min_horizontal(pl.all()).cast(pl.Float64).alias(name))
-        )
-        frame = frame.join(best, on=keys, how="left", maintain_order="left")
+        best = np.fmin.reduce(np.asarray(matrix, dtype=np.float64), axis=0)
+        frame = frame.with_columns(pl.Series(name, best, dtype=pl.Float64, nan_to_null=True))
     return frame, names
 
 
