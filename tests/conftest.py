@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import polars as pl
-from apb2.api import JsonValue, ParsedLevel, ParsedLevels
+from apb2.api import JsonValue, ParsedLevel, ParsedLevels, packaged_rule_declarations
 from numpy.typing import NDArray
 
 from apb_proteobench.calculation.contracts import QuantitativeLevelInput
@@ -85,21 +85,26 @@ def quantitative_input(*, hy: bool = False) -> QuantitativeLevelInput:
     )
 
 
+_DIANN_ION_RULE = packaged_rule_declarations()[("diann/v1_8/rules.json", "peptidoform_ion")][0]
+
+
 def parsed_result(
     layers: Sequence[str] = ("Intensity",), rule_json: str | None = None
 ) -> ParsedLevels:
     """Return an unannotated one-level numeric APB result.
 
     Every layer holds the same values; the first is primary. ``rule_json`` binds the level to
-    a packaged APB2 rule, as conversion records it.
+    a packaged APB2 rule, as conversion records it; DIA-NN 1.8's by default, since apb-catalog
+    places an app's fields, such as apb-fasta's, on the level a rule names.
     """
     inputs = quantitative_input()
     features = inputs.feature_ids.astype(str).tolist()
     proteins = inputs.reported_proteins.astype(str).tolist()
     matrix = matrix_values()
-    uns: dict[str, JsonValue] = {"quantification_level": "peptidoform_ion"}
-    if rule_json is not None:
-        uns["provenance"] = {"rule_json": rule_json}
+    uns: dict[str, JsonValue] = {
+        "quantification_level": "peptidoform_ion",
+        "provenance": {"rule_json": rule_json or _DIANN_ION_RULE},
+    }
     level = ParsedLevel.build(
         pl.DataFrame({"Run": ["run_A1", "run_A2", "run_B1", "run_B2"]}),
         ("Run",),
@@ -127,7 +132,8 @@ def parsed_result(
             )
         },
     )
-    return ParsedLevels(levels={"peptidoform_ion": level}, uns={})
+    verified: dict[str, JsonValue] = {"fasta": {"provenance": {"peptide_verification": {}}}}
+    return ParsedLevels(levels={"peptidoform_ion": level}, uns={}, metadata=verified)
 
 
 SPECIES_ORGANISMS = {

@@ -36,6 +36,8 @@ ABUNDANCE_KEYS: dict[AbundanceNormalization, str] = {
     "run_setting": "normalized_intensity",
 }
 """The ``abundance`` key that names each module normalization."""
+FASTA_CATALOGUE = "fasta_peptides_alpha"
+"""The apb-catalog set of apb-fasta's peptide verification: species and contaminants."""
 
 type ProteinSource = Literal["matched", "vendor"]
 """Which proteins decide a feature's species and contaminants, both resolved by apb-fasta.
@@ -240,9 +242,12 @@ def extract_layer(
     if proteins == "vendor":  # apb-fasta resolves the vendor's proteins from this column
         _var_role(level, "fasta_accessions")
     organisms, contaminant = _PROTEIN_COLUMNS[proteins]
-    fasta = level.varm.get("fasta_validation")
-    if fasta is None or contaminant not in fasta.columns:
+    if FASTA_CATALOGUE not in DataCatalog.answering_sets(parsed):
         raise ValueError("ProteoBench scoring requires apb-fasta peptide verification")
+    fasta = DataCatalog(parsed, FASTA_CATALOGUE).levels[level_name].var
+    matched_organisms, contaminants = fasta.get(organisms), fasta.get(contaminant)
+    if matched_organisms is None or contaminants is None:
+        raise ValueError(f"apb-fasta's peptide verification lacks {organisms} or {contaminant}")
     markings = _vendor_markings(level)
     matrix = (
         level.layers[layer_name].quantitative_values().to_numpy().astype(np.float64, copy=False).T
@@ -255,8 +260,8 @@ def extract_layer(
             matrix=matrix,
             feature_ids=pd.Index(level.var.frame.get_column(feature).cast(pl.String).to_list()),
             reported_proteins=level.var.frame.get_column(assignment).to_pandas(),
-            matched_organisms=fasta.get_column(organisms).to_pandas(),
-            contaminants=fasta.get_column(contaminant).to_numpy()
+            matched_organisms=matched_organisms.to_pandas(),
+            contaminants=contaminants.to_numpy()
             | markings.get_column("apb_Contaminant").to_numpy(),
             decoys=markings.get_column("apb_Decoy").to_numpy(),
             level=level_name,

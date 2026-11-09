@@ -1,5 +1,9 @@
 # Changes
 
+## 2026-11-09
+
+- Scoring reads apb-fasta's species and contaminants through apb-catalog 0.33's `fasta_peptides_alpha` set, not `varm["fasta_validation"]` by name; a result that does not record apb-fasta's peptide verification is refused as before
+
 ## 2026-11-08
 
 - **Breaking:** apb-catalog 0.32 names its sets `abundance_alpha` and `proteobench_entrapment_alpha`; the catalogue snapshots sit under `metadata["catalog"]["abundance_alpha"]` and `["proteobench_entrapment_alpha"]`
