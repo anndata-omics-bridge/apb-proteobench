@@ -1,5 +1,10 @@
 # Changes
 
+## 2026-11-08
+
+- **Breaking:** apb-catalog 0.32 names its sets `abundance_alpha` and `proteobench_entrapment_alpha`; the catalogue snapshots sit under `metadata["catalog"]["abundance_alpha"]` and `["proteobench_entrapment_alpha"]`
+- Entrapment scores every key the catalog offers: a catalog now composes only the sets named, so no `apb` key needs filtering out
+
 ## 2026-11-02
 
 - **Breaking:** apb-catalog asks by key. Entrapment scores are named `<location>.<key>`, since `q_value` now names both the per-run layer and the experiment-wide `var` column (apb-catalog's former `global_q_value`): `layers.q_value`, `var.q_value`, `var.library_q_value`, in `result.entrapment`, the `summary` layers, `--scores` and the provenance's `q_values` (was `kinds`)

@@ -72,7 +72,7 @@ def test_the_module_scores_the_layer_the_catalogue_names(tmp_path: Path) -> None
     assert (entry["value"], entry["status"], entry["layer"]) == (True, "ok", "Precursor_Quantity")
     catalog = result.parsed.metadata["catalog"]
     assert isinstance(catalog, dict)
-    assert "abundance" in catalog
+    assert "abundance_alpha" in catalog
 
 
 @pytest.mark.parametrize("rule", ["peaks/rules.json", None], ids=["missing", "unknown"])

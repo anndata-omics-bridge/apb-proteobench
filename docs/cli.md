@@ -51,7 +51,7 @@ The main options are `--level LEVEL`, `--software`, `--strict`, `--backend`, `--
 apb-proteobench run entrapment DATA FASTA --params PATH --output RESULT [OPTIONS]
 ```
 
-`run entrapment` converts vendor inputs at the module's level, verifies peptides against FASTA, labels each precursor target or entrapment from the same FASTA, and scores ProteoBench's entrapment metrics: lower-bound, combined and paired FDP, their categories, and the FDP curve. apb-catalog's `proteobench_entrapment` set names the precursor q-values the result offers by key and location, each scored as `<location>.<key>`: `layers.q_value` per run, `var.q_value` across the experiment, `var.library_q_value`. A q-value stored per run is scored from its best value across runs; one stored once per precursor, as DIA-NN's library and experiment-wide q-values and Spectronaut 21's library q-value are, from that value:
+`run entrapment` converts vendor inputs at the module's level, verifies peptides against FASTA, labels each precursor target or entrapment from the same FASTA, and scores ProteoBench's entrapment metrics: lower-bound, combined and paired FDP, their categories, and the FDP curve. apb-catalog's `proteobench_entrapment_alpha` set names the precursor q-values the result offers by key and location, each scored as `<location>.<key>`: `layers.q_value` per run, `var.q_value` across the experiment, `var.library_q_value`. A q-value stored per run is scored from its best value across runs; one stored once per precursor, as DIA-NN's library and experiment-wide q-values and Spectronaut 21's library q-value are, from that value:
 
 ```bash
 apb-proteobench run entrapment report.parquet ProteoBenchFASTA_Entrapment_Human_with_contaminants_entrapment_pep.fasta \
@@ -63,7 +63,7 @@ The FASTA argument may instead be the Parquet file `protein-fasta database entra
 
 `--scores PATH` writes one ProteoBench entrapment datapoint per q-value, keyed by `<location>.<key>`: the search-parameter fields plus `lower_bound_FDP`, `combined_FDP`, `paired_FDP`, their categories and the FDP curve, in the layout of the upstream entrapment datapoints.
 
-`--module` defaults to the packaged `entrapment_dia_astral`. Scores per q-value sit in the level's `metadata["proteobench"]["result"]["entrapment"]`, with identified precursors and combined and paired FDP per q-value in its `summary`; each precursor's label, pair and best q-values sit in `varm["proteobench:entrapment"]`, and the catalogue snapshot in the root `metadata["catalog"]["proteobench_entrapment"]["result"]`. Precursors with equal q-values share a rank, so a tie never counts as an entrapment out-scoring its target ([ProteoBench#1159](https://github.com/Proteobench/ProteoBench/issues/1159)). `--timings-dir` writes the same three timing files as `run quant`, without `export`.
+`--module` defaults to the packaged `entrapment_dia_astral`. Scores per q-value sit in the level's `metadata["proteobench"]["result"]["entrapment"]`, with identified precursors and combined and paired FDP per q-value in its `summary`; each precursor's label, pair and best q-values sit in `varm["proteobench:entrapment"]`, and the catalogue snapshot in the root `metadata["catalog"]["proteobench_entrapment_alpha"]["result"]`. Precursors with equal q-values share a rank, so a tie never counts as an entrapment out-scoring its target ([ProteoBench#1159](https://github.com/Proteobench/ProteoBench/issues/1159)). `--timings-dir` writes the same three timing files as `run quant`, without `export`.
 
 ## `apb-proteobench benchmark`
 

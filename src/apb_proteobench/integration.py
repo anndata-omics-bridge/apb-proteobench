@@ -29,7 +29,7 @@ from apb_proteobench.workflow import ProteoBenchResult
 
 _STORAGE_KEY = "proteobench"
 _DIAGNOSTICS_PREFIX = f"{_STORAGE_KEY}:"
-ABUNDANCE_CATALOGUE = "abundance"
+ABUNDANCE_CATALOGUE = "abundance_alpha"
 """The apb-catalog set saying what each abundance layer measures and whether it is normalized."""
 ABUNDANCE_KEYS: dict[AbundanceNormalization, str] = {
     "none": "intensity",
@@ -279,7 +279,7 @@ def persist_results(
 
     ``chosen``, the layer a module's abundance normalization selected, adds a summary entry
     that needs attention when the catalogue did not find it, and stores the catalogue's
-    snapshot under ``metadata["catalog"]["abundance"]``.
+    snapshot under ``metadata["catalog"]["abundance_alpha"]``.
     """
     if not results:
         raise ValueError("cannot persist an empty ProteoBench layer result")

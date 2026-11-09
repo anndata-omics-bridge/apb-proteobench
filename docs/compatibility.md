@@ -20,7 +20,7 @@ Measured against the stored ProteoBench datapoints of 219 corpus submissions, `n
 
 ## The scored layer is chosen by the module or the caller
 
-`run` and `benchmark` score one abundance layer: `--layer NAME`, by default `X`, the module's layer. That is the APB2 rule's primary layer, unless the module sets `abundance_normalization`; then it is the `intensity` layer with that normalization in apb-catalog's `abundance` set. ProteoBench fixes the quantity column per module and tool, and its plasma module departs from its other DIA modules:
+`run` and `benchmark` score one abundance layer: `--layer NAME`, by default `X`, the module's layer. That is the APB2 rule's primary layer, unless the module sets `abundance_normalization`; then it is the `intensity` layer with that normalization in apb-catalog's `abundance_alpha` set. ProteoBench fixes the quantity column per module and tool, and its plasma module departs from its other DIA modules:
 
 | Tool | ProteoBench plasma | ProteoBench other DIA modules | APB primary (`X`) |
 | --- | --- | --- | --- |

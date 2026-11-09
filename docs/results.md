@@ -25,7 +25,7 @@ Scoring writes the `proteobench` record, schema version 4, with common provenanc
 | Root `uns["apb"]["proteobench"]["provenance"]["scoring"]` | versions, method identities, deciding proteins (`matched` or `vendor`), selection mode |
 | Level `["proteobench"]["result"]["scoring"]["Intensity"]` | retained quantity name, roles and scores |
 | Level `["proteobench"]["summary"]` | per layer: features scored, median and mean absolute epsilon; for a module with `abundance_normalization`: `abundance_normalization`, whether apb-catalog named the layer, `attention` when the primary layer stood in; per q-value kind after entrapment: identified precursors, combined and paired FDP |
-| Root `["catalog"]["abundance"]` | for a module with `abundance_normalization`: apb-catalog's snapshot of the layer lookup |
+| Root `["catalog"]["abundance_alpha"]` | for a module with `abundance_normalization`: apb-catalog's snapshot of the layer lookup |
 | Level `["proteobench"]["details"]` | the `varm` slots holding each layer's diagnostics |
 
 The feature diagnostics have exactly one row per variable in the selected level. Scores include the

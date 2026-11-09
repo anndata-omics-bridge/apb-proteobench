@@ -11,7 +11,7 @@ from typing import cast
 import numpy as np
 import polars as pl
 from apb2.api import JsonValue, ParsedLevels
-from apb_catalog.api import DataCatalog, attach_snapshot, catalogue_table
+from apb_catalog.api import DataCatalog, attach_snapshot
 from apb_fasta.api import FastaAnnotator
 
 from apb_proteobench.annotation import PROTEOBENCH_SCHEMA_VERSION
@@ -28,7 +28,7 @@ from apb_proteobench.calculation.mapping import render_proteobench_features
 from apb_proteobench.configuration.entrapment import EntrapmentModuleSettings
 from apb_proteobench.configuration.schema import QuantificationLevel
 
-CATALOGUE = "proteobench_entrapment"
+CATALOGUE = "proteobench_entrapment_alpha"
 """The apb-catalog set naming each precursor q-value a result offers, by key and location."""
 _STORAGE_KEY = "proteobench"
 DIAGNOSTICS_SLOT = f"{_STORAGE_KEY}:entrapment"
@@ -101,14 +101,12 @@ def _precursors(
 
     A q-value stored per run, as a layer, takes its best value across runs; one stored once per
     precursor, in ``var``, is that value. One key, such as ``q_value``, may be offered in both.
-    Only the set's own keys are scored, not those of ``apb``, which every catalog composes.
     """
-    own = set(catalogue_table(CATALOGUE).get_column("key"))
     if level_name not in catalog.levels:
         raise EntrapmentError(f"the result has no {level_name} level")
     found = catalog.levels[level_name]
-    offered = [("layers", key) for key in sorted(found.layers.keys()) if key in own] + [
-        ("var", key) for key in sorted(found.var.keys()) if key in own
+    offered = [("layers", key) for key in sorted(found.layers.keys())] + [
+        ("var", key) for key in sorted(found.var.keys())
     ]
     names = tuple(f"{location}.{key}" for location, key in offered)
     if not names:
