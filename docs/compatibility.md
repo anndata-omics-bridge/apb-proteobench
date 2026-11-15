@@ -43,4 +43,17 @@ ProteoBench labels each precursor and finds its partner in a separate pair file.
 ## Smaller differences
 
 - Two-species (HY) modules write no `nr_quantified_ECOLI`; ProteoBench's plasma code always writes it, as 0
-- Per-species keys exist only for the module's species; key names and formulas otherwise follow ProteoBench 0.18.0
+- Per-species keys exist only for the module's species; formulas follow ProteoBench 0.18.0
+- ProteoBench's plasma metrics have generic names, because APB computes them for every module; each dynamic range exists for every species, not HUMAN only; ProteoBench's two duplicates are dropped:
+
+| ProteoBench 0.18 | APB |
+| --- | --- |
+| `{median,mean}_abs_log2_fc_error_spike_ins_global` | `{median,mean}_abs_epsilon_changed_global` |
+| `{median,mean}_abs_log2_fc_error_spike_ins` | dropped; the same value as `_global` |
+| `{median,mean}_abs_log2_fc_error_spike_ins_eq_species` | `{median,mean}_abs_epsilon_changed_eq_species` |
+| `{median,mean}_abs_epsilon_human_plasma` | dropped; `{median,mean}_abs_epsilon_HUMAN` |
+| `nr_quantified_spike_ins` | `nr_quantified_changed` |
+| `dynamic_range_human_plasma_A`, `_B` | `dynamic_range_HUMAN_A`, `_B` |
+| `dynamic_range_human_plasma_mean` | `dynamic_range_HUMAN` |
+| top level `dynamic_range_human_plasma` | `dynamic_range_HUMAN` |
+| top level `median_abs_epsilon_human_plasma` | `median_abs_epsilon_HUMAN`; null without HUMAN features, not 0.0 |

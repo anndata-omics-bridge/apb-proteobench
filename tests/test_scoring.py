@@ -213,20 +213,24 @@ def test_alignment_rejects_conflicting_design() -> None:
         MixedSpeciesDiagnostics().diagnose(inputs, module_settings())
 
 
-def test_plasma_metrics_match_hand_computed_values() -> None:
-    intermediate = pd.DataFrame(
+def _changed_species_frame(log2_expected_ratio: list[float]) -> pd.DataFrame:
+    return pd.DataFrame(
         {
             "species": ["HUMAN", "HUMAN", "HUMAN", "YEAST", "YEAST", "ECOLI"],
             "nr_observed": [6, 6, 2, 6, 3, 6],
             "epsilon": [0.1, -0.3, 0.5, 0.2, -0.6, 1.0],
-            "Intensity_mean_A": [10.0, 1e3, 1e5, 1.0, 1.0, 1.0],
+            "Intensity_mean_A": [10.0, 1e3, 1e5, 1.0, 10.0, 1.0],
             "Intensity_mean_B": [1e2, 1e3, np.nan, 1.0, 1.0, 1.0],
             "log2_A_vs_B": [0.0] * 6,
-            "log2_expectedRatio": [0.0, 0.0, 0.0, -1.0, -1.0, 1.0],
+            "log2_expectedRatio": log2_expected_ratio,
             "CV_A": [0.1] * 6,
             "CV_B": [0.1] * 6,
         }
     )
+
+
+def test_changed_species_and_dynamic_range_match_hand_computed_values() -> None:
+    intermediate = _changed_species_frame([0.0, 0.0, 0.0, -1.0, -1.0, 1.0])
     config = ScoreConfig(species=("HUMAN", "YEAST", "ECOLI"), default_cutoff=1, max_nr_observed=7)
     scores = build_scores(intermediate, config)
     all_rows, observed_six, empty = (scores.results[cutoff].root for cutoff in ("1", "6", "7"))
@@ -234,21 +238,49 @@ def test_plasma_metrics_match_hand_computed_values() -> None:
     assert all_rows == pytest.approx(
         all_rows
         | {
-            "median_abs_log2_fc_error_spike_ins": 0.6,
-            "mean_abs_log2_fc_error_spike_ins_global": 0.6,
-            "median_abs_log2_fc_error_spike_ins_eq_species": 0.7,
-            "median_abs_epsilon_human_plasma": 0.3,
-            "nr_quantified_spike_ins": 3,
+            "median_abs_epsilon_changed_global": 0.6,
+            "mean_abs_epsilon_changed_global": 0.6,
+            "median_abs_epsilon_changed_eq_species": 0.7,
+            "median_abs_epsilon_HUMAN": 0.3,
+            "nr_quantified_changed": 3,
             "nr_quantified_HUMAN": 3,
             "nr_quantified_ECOLI": 1,
-            "dynamic_range_human_plasma_A": 3.2,
-            "dynamic_range_human_plasma_B": 0.8,
-            "dynamic_range_human_plasma_mean": 2.0,
+            "dynamic_range_HUMAN_A": 3.2,
+            "dynamic_range_HUMAN_B": 0.8,
+            "dynamic_range_HUMAN": 2.0,
+            "dynamic_range_YEAST_A": 0.8,
+            "dynamic_range_YEAST_B": 0.0,
+            "dynamic_range_ECOLI_A": 0.0,
         }
     )
-    assert observed_six["dynamic_range_human_plasma_A"] == pytest.approx(1.6)
-    assert observed_six["mean_abs_epsilon_human_plasma"] == pytest.approx(0.2)
+    assert not [name for name in all_rows if "plasma" in name or "spike_ins" in name]
+    assert observed_six["dynamic_range_HUMAN_A"] == pytest.approx(1.6)
+    assert observed_six["mean_abs_epsilon_HUMAN"] == pytest.approx(0.2)
     assert observed_six["nr_quantified_YEAST"] == 1
-    assert empty["dynamic_range_human_plasma_mean"] == empty["nr_quantified_HUMAN"] == 0
-    assert scores.dynamic_range_human_plasma == pytest.approx(2.0)
-    assert scores.nr_quantified_spike_ins == 3
+    assert empty["dynamic_range_HUMAN"] == empty["nr_quantified_HUMAN"] == 0
+    assert scores.dynamic_range_HUMAN == pytest.approx(2.0)
+    assert scores.median_abs_epsilon_HUMAN == pytest.approx(0.3)
+    assert scores.median_abs_epsilon_changed_global == pytest.approx(0.6)
+    assert scores.nr_quantified_changed == 3
+
+
+def test_changed_species_exclude_only_the_species_closest_to_one_to_one() -> None:
+    # HUMAN at 1.2 changes least, so as for roc_auc it is the unchanged species.
+    intermediate = _changed_species_frame([0.26, 0.26, 0.26, -2.3, -2.3, 2.0])
+    scores = build_scores(intermediate, ScoreConfig(species=("HUMAN", "YEAST", "ECOLI")))
+
+    assert scores.results["1"].root["nr_quantified_changed"] == 3
+    assert scores.results["1"].root["median_abs_epsilon_changed_global"] == pytest.approx(0.6)
+
+
+def test_missing_human_scores_nan_at_the_default_cutoff() -> None:
+    intermediate = _changed_species_frame([0.0, 0.0, 0.0, -1.0, -1.0, 1.0])
+    scores = build_scores(intermediate, ScoreConfig(species=("YEAST", "ECOLI"), default_cutoff=3))
+    without_human = build_scores(
+        intermediate[intermediate["species"] != "HUMAN"],
+        ScoreConfig(species=("HUMAN", "YEAST", "ECOLI"), default_cutoff=3),
+    )
+
+    assert np.isnan(scores.dynamic_range_HUMAN)
+    assert np.isnan(without_human.median_abs_epsilon_HUMAN)
+    assert np.isnan(without_human.dynamic_range_HUMAN)

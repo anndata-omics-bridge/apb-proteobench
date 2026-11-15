@@ -48,7 +48,7 @@ For optional operation-level timing files, pass `--timings-dir DIR` to `run`. It
 The package owns all 11 ProteoBench module TOMLs: the nine quantitative HYE/HY and plasma modules
 and the newer de novo and entrapment documents. Entrapment is scored by `run entrapment`; de novo
 is packaged for planned support. Neither is accepted by the quantitative scorer. Every quantitative module's scores
-include ProteoBench's plasma metrics; see [results](https://anndata-omics-bridge.github.io/apb-proteobench/results/). Stable names,
+include ProteoBench's plasma metrics under generic names; see [results](https://anndata-omics-bridge.github.io/apb-proteobench/results/). Stable names,
 support status, and the Python loading API are documented under
 [module configuration](https://anndata-omics-bridge.github.io/apb-proteobench/configuration/).
 

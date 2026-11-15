@@ -1,5 +1,11 @@
 # Changes
 
+## 2026-11-15
+
+- **Breaking:** ProteoBench's plasma metrics get generic names, since every quantitative module computes them: `*_abs_log2_fc_error_spike_ins_global` and `_eq_species` become `*_abs_epsilon_changed_global` and `_eq_species`, `nr_quantified_spike_ins` becomes `nr_quantified_changed`, and `dynamic_range_human_plasma_A`, `_B`, `_mean` become `dynamic_range_HUMAN_A`, `_B` and `dynamic_range_HUMAN`. The duplicates `*_abs_log2_fc_error_spike_ins` and `*_abs_epsilon_human_plasma` are gone; `*_abs_epsilon_HUMAN` carries the latter. `ProteoBenchScores` follows: `median_abs_epsilon_changed_global`, `nr_quantified_changed`, `dynamic_range_HUMAN`, and `median_abs_epsilon_HUMAN`, which is null rather than 0.0 when no HUMAN feature passes the default cutoff. The `--scores` document and the `--result-performance` ProteoBot datapoint carry the new keys. Scoring method `proteobench-compatible` becomes version 3; results scored before keep the old keys until rescored. The name map is in `docs/compatibility.md`
+- Dynamic range is now scored for every module species, as `dynamic_range_<SPECIES>_A`, `_B` and their mean `dynamic_range_<SPECIES>`, not for HUMAN only
+- The changed species are all but the one whose expected ratio is closest to 1:1, the species `roc_auc` already treats as unchanged, instead of all but HUMAN; that species is HUMAN in every packaged module, so values are unchanged
+
 ## 2026-11-09
 
 - Scoring reads apb-fasta's species and contaminants through apb-catalog 0.33's `fasta_peptides_alpha` set, not `varm["fasta_validation"]` by name; a result that does not record apb-fasta's peptide verification is refused as before

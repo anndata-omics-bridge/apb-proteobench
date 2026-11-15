@@ -92,7 +92,7 @@ class ProteoBenchCompatibleScoring:
         )
 
     def identity(self) -> dict[str, str]:
-        return {"name": "proteobench-compatible", "version": "2"}
+        return {"name": "proteobench-compatible", "version": "3"}
 
 
 @dataclass(frozen=True, slots=True)
