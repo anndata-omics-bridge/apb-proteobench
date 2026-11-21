@@ -67,9 +67,12 @@ class RunCliOptions:
     """Options for the complete raw-vendor benchmark workflow."""
 
     params: Annotated[
-        Path | None,
-        Parameter(help="Vendor search-parameter file"),
-    ] = None
+        tuple[Path, ...],
+        Parameter(
+            help="Vendor search-parameter file; repeat for a tool that writes two "
+            "(MetaMorpheus, quantms)"
+        ),
+    ] = ()
     module: Annotated[
         str | None,
         Parameter(help="Packaged ProteoBench module name, or a module TOML path"),
@@ -124,9 +127,12 @@ class EntrapmentCliOptions:
     """Options for the complete raw-vendor entrapment workflow."""
 
     params: Annotated[
-        Path | None,
-        Parameter(help="Vendor search-parameter file"),
-    ] = None
+        tuple[Path, ...],
+        Parameter(
+            help="Vendor search-parameter file; repeat for a tool that writes two "
+            "(MetaMorpheus, quantms)"
+        ),
+    ] = ()
     module: Annotated[
         str,
         Parameter(help="Packaged entrapment module name"),
@@ -180,7 +186,7 @@ class _VerifiedConversion:
 
 def _convert_and_verify(
     data: Path,
-    params: Path,
+    params: tuple[Path, ...],
     fasta_paths: tuple[Path, ...],
     /,
     *,
@@ -311,7 +317,7 @@ def run_quant(
     sets abundance_normalization.
     --timings-dir records internal operation timings outside the scored result.
     """
-    if options.params is None:
+    if not options.params:
         logger.error("pass --params PATH for the vendor search-parameter file")
         return 1
     if options.module is None:
@@ -392,7 +398,7 @@ def run_entrapment(
     protein database written by protein-fasta database.
     --timings-dir records internal operation timings outside the scored result.
     """
-    if options.params is None:
+    if not options.params:
         logger.error("pass --params PATH for the vendor search-parameter file")
         return 1
     if options.output is None:
