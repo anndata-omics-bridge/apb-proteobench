@@ -1,5 +1,11 @@
 # Changes
 
+## 2026-11-21, release 0.2.0
+
+- Releases every change below since 0.1.1, among them breaking ones: ProteoBench record schema 4, generic names for the plasma metrics, `--contaminants` and `--proteins` choices, the module key `abundance_normalization`
+- `--params` repeats, for tools that write two parameter files (quantms, MetaMorpheus)
+- Requires apb2 0.1.3, apb-catalog 0.1.5 and apb-fasta 0.1.2
+
 ## 2026-11-15
 
 - **Breaking:** ProteoBench's plasma metrics get generic names, since every quantitative module computes them: `*_abs_log2_fc_error_spike_ins_global` and `_eq_species` become `*_abs_epsilon_changed_global` and `_eq_species`, `nr_quantified_spike_ins` becomes `nr_quantified_changed`, and `dynamic_range_human_plasma_A`, `_B`, `_mean` become `dynamic_range_HUMAN_A`, `_B` and `dynamic_range_HUMAN`. The duplicates `*_abs_log2_fc_error_spike_ins` and `*_abs_epsilon_human_plasma` are gone; `*_abs_epsilon_HUMAN` carries the latter. `ProteoBenchScores` follows: `median_abs_epsilon_changed_global`, `nr_quantified_changed`, `dynamic_range_HUMAN`, and `median_abs_epsilon_HUMAN`, which is null rather than 0.0 when no HUMAN feature passes the default cutoff. The `--scores` document and the `--result-performance` ProteoBot datapoint carry the new keys. Scoring method `proteobench-compatible` becomes version 3; results scored before keep the old keys until rescored. The name map is in `docs/compatibility.md`
